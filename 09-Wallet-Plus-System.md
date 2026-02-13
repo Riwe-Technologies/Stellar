@@ -1,4 +1,4 @@
-# Wallet Plus System
+# Wallet Plus System. 
 ## Self-Custodial Wallet with Device Binding & Advanced Security
 
 ---
