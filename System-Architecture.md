@@ -12,7 +12,7 @@
 5. [Security Architecture](#security-architecture)
 6. [Integration Patterns](#integration-patterns)
 
-**Related docs:** [04-Soroban-Overview.md](./04-Soroban-Overview.md) · [05-Contract-Specifications.md](./05-Contract-Specifications.md) · [08-DeFi-Wallet-System.md](./08-DeFi-Wallet-System.md)
+**Related docs:** [Soroban-Overview.md](./Soroban-Smart-Contracts-Overview.md) · [05-Contract-Specifications.md](./Contract-Specifications.md) · [08-DeFi-Wallet-System.md](./DeFi-and-Moneygram-Claims-Payout.md)
 
 ---
 
