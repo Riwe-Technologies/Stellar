@@ -1,21 +1,19 @@
 # Fiat Integration System
-## On/Off-Ramp Implementation with Paystack & Banking
+## On/Off-Ramp Implementation with Paystack, MoneyGram, and Banking
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 1. [Integration Overview](#integration-overview)
 2. [Paystack Integration](#paystack-integration)
 3. [Banking System Integration](#banking-system-integration)
 4. [Exchange Rate Management](#exchange-rate-management)
 5. [KYC & Compliance](#kyc--compliance)
-6. [Transaction Processing](#transaction-processing)
-7. [Risk Management](#risk-management)
 
 ---
 
-## 🌟 Integration Overview
+## Integration Overview
 
 ### Fiat Integration Architecture
 ```
@@ -28,8 +26,8 @@
 │  │   (Deposit) │  │(Withdrawal) │  │    Rate     │             │
 │  │             │  │             │  │ Management  │             │
 │  │ • Paystack  │  │ • Bank      │  │ • Live      │             │
-│  │ • Cards     │  │ • Transfer  │  │ • Multiple  │             │
-│  │ • Bank      │  │ • Mobile    │  │ • Cached    │             │
+│  │ • MoneyGram │  │ • MoneyGram │  │ • Multiple  │             │
+│  │ • Cards     │  │ • Mobile    │  │ • Cached    │             │
 │  └─────────────┘  └─────────────┘  └─────────────┘             │
 │         │                 │                 │                  │
 │         └─────────────────┼─────────────────┘                  │
@@ -58,14 +56,19 @@
 - **Crypto Assets**: XLM, USDC, BTC, ETH, USDT
 
 ### Integration Partners
-- **Payment Processor**: Paystack
+- **Bank Rails**: Paystack
+- **Cash Ramps**: MoneyGram
 - **Banking**: Nigerian Inter-Bank Settlement System (NIBSS)
 - **Exchange Rates**: Multiple providers (CoinGecko, CoinMarketCap, Binance)
 - **Compliance**: Chainalysis, Elliptic
 
+Standard NGN bank-flow deposits and withdrawals remain Paystack-centric in the DeFi wallet service layer. MoneyGram is supported as a separate USDC cash-ramp path for supported wallet funding and payout exit flows.
+
 ---
 
-## 💳 Paystack Integration
+## Paystack Integration
+
+The implementation examples in this section focus on the current Paystack-backed bank-flow path. MoneyGram support is handled through a separate USDC cash-ramp service and webhook flow.
 
 ### PaystackService Implementation
 ```php
@@ -460,7 +463,7 @@ class PaystackWebhookController extends Controller
 
 ---
 
-## 🏦 Banking System Integration
+## Banking System Integration
 
 ### Bank Account Verification
 ```php
@@ -604,7 +607,7 @@ class NIBSSService
 
 ---
 
-## 💱 Exchange Rate Management
+## Exchange Rate Management
 
 ### ExchangeRateService Implementation
 ```php
@@ -770,7 +773,7 @@ class CoinGeckoProvider
 
 ---
 
-## 🔒 KYC & Compliance
+## KYC & Compliance
 
 ### KYC Verification for Fiat Operations
 ```php
