@@ -3,30 +3,40 @@
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 1. [System Overview](#system-overview)
 2. [Multi-Network Architecture](#multi-network-architecture)
 3. [Custodial Address Management](#custodial-address-management)
-4. [Fiat On/Off-Ramps](#fiat-onoff-ramps)
-5. [Transaction Processing](#transaction-processing)
-6. [Security & Compliance](#security--compliance)
+4. [Fiat On/Off-Ramps](#fiat-on-off-ramps)
+   - [MoneyGram capability summary](#moneygram-capability-summary)
+   - [Configuration surface](#configuration-surface)
+   - [Deposit and withdrawal flows](#deposit-flow-cash-in-to-stellar-wallet)
+   - [Status lifecycle and webhooks](#status-lifecycle-and-webhooks)
+   - [Additional route groups](#additional-route-groups)
+5. [Claims Payout Flow](#claims-payout-flow)
+6. [Security & Compliance](#security-compliance)
 7. [API Integration](#api-integration)
+
+**Related docs:** [04-Soroban-Overview.md](./04-Soroban-Overview.md) · [05-Contract-Specifications.md](./05-Contract-Specifications.md)
 
 ---
 
-## 🌟 System Overview
+<a id="system-overview"></a>
+## System Overview
+
+This wallet documentation covers wallet operations, fiat rails, and payout settlement around the same **live 4-contract Soroban insurance suite** described in `docs/04-Soroban-Overview.md` and `docs/05-Contract-Specifications.md`.
 
 ### DeFi Wallet Purpose
-The DeFi Wallet system provides users with a comprehensive multi-network cryptocurrency wallet that seamlessly integrates with traditional financial systems through fiat on/off-ramps, enabling easy access to decentralized finance while maintaining regulatory compliance.
+The DeFi Wallet system provides users with a comprehensive multi-network cryptocurrency wallet that seamlessly integrates with traditional financial systems through fiat on/off-ramps, while also acting as the primary settlement account for insurance premiums and claims payouts on Stellar.
 
 ### Key Features
 - **Multi-Network Support**: Stellar, Bitcoin, Ethereum, Polygon, BSC, Tron
 - **Custodial Management**: Secure, deterministic address generation
-- **Fiat Integration**: NGN ↔ Crypto conversion via Paystack
+- **Fiat Integration**: NGN ↔ Crypto conversion via Paystack plus USDC cash ramps via MoneyGram
 - **Real-Time Balances**: Live balance synchronization across networks
 - **KYC/AML Compliance**: Built-in regulatory compliance
-- **Insurance Integration**: Direct connection to parametric insurance
+- **Insurance Integration**: Direct connection to parametric insurance, claim settlement, and payout delivery into Stellar wallets
 
 ### Architecture Overview
 ```
@@ -48,9 +58,9 @@ The DeFi Wallet system provides users with a comprehensive multi-network cryptoc
 │  ┌─────────────────────────────────────────────────────────────┤
 │  │                Fiat On/Off-Ramp System                     │
 │  │                                                             │
-│  │ • Paystack Integration    • Bank Verification              │
-│  │ • Exchange Rate Mgmt      • KYC/AML Compliance             │
-│  │ • Transaction Processing  • Risk Assessment                │
+│  │ • Paystack Integration    • MoneyGram Cash Ramps           │
+│  │ • Exchange Rate Mgmt      • Bank / Cash Pickup Options     │
+│  │ • Transaction Processing  • KYC/AML Compliance             │
 │  └─────────────────────────────────────────────────────────────┘
 │                           │                                    │
 │  ┌─────────────────────────────────────────────────────────────┤
@@ -65,7 +75,8 @@ The DeFi Wallet system provides users with a comprehensive multi-network cryptoc
 
 ---
 
-## 🌐 Multi-Network Architecture
+<a id="multi-network-architecture"></a>
+## Multi-Network Architecture
 
 ### Supported Networks
 
@@ -198,7 +209,8 @@ CREATE TABLE defi_wallets (
 
 ---
 
-## 🏠 Custodial Address Management
+<a id="custodial-address-management"></a>
+## Custodial Address Management
 
 ### CustodialAddressService
 ```php
@@ -456,7 +468,8 @@ class DefiWallet extends Model
 
 ---
 
-## 💱 Fiat On/Off-Ramps
+<a id="fiat-on-off-ramps"></a>
+## Fiat On/Off-Ramps
 
 ### On-Ramp Process Flow
 ```
@@ -699,9 +712,355 @@ public function initiateWithdrawal(DefiWallet $wallet, array $withdrawalData): a
 }
 ```
 
+### MoneyGram USDC Cash Ramps
+
+In addition to the Paystack NGN bank-transfer flow, the wallet system supports **MoneyGram on/off-ramp integration** for **USDC on Stellar**. This gives the wallet a second fiat corridor focused on cash deposit and cash pickup, especially useful for users operating outside the standard bank-transfer path.
+
+**MoneyGram quick navigation:**
+- [Capability summary](#moneygram-capability-summary)
+- [Configuration surface](#configuration-surface)
+- [Service methods](#moneygram-service-methods)
+- [Deposit flow](#deposit-flow-cash-in-to-stellar-wallet)
+- [Withdrawal flow](#withdrawal-flow-cash-out-from-stellar-wallet)
+- [Status lifecycle and webhooks](#status-lifecycle-and-webhooks)
+- [Additional route groups](#additional-route-groups)
+
+#### Integration Model
+
+| Component | Role in the wallet flow |
+| --- | --- |
+| `docs/MONEYGRAM_INTEGRATION.md` | Detailed operational and configuration reference |
+| `app/Services/MoneyGramRampsService.php` | Implements SEP-24 style deposit and withdrawal initiation |
+| `app/Http/Controllers/MoneyGramController.php` | Validates requests, checks wallet prerequisites, and returns interactive session data |
+| `routes/moneygram.php` | Exposes public info/webhook routes plus authenticated deposit, withdrawal, and transaction routes |
+| `routes/moneygram-api.php` | Test-suite endpoints for MoneyGram approval and sandbox support |
+
+<a id="moneygram-capability-summary"></a>
+#### MoneyGram Capability Summary
+
+| Capability | Current behavior in Riwe |
+| --- | --- |
+| Asset rail | USDC on Stellar |
+| Ramp model | SEP-24 style interactive deposit and withdrawal |
+| Auth model | Wallet/app auth for Riwe routes, SEP-compatible integration on the provider side |
+| User experience | Interactive URL + instructions returned to frontend |
+| Settlement destination | User's Stellar account / wallet |
+| Provider recordkeeping | Stored locally in `FiatOnramp` with provider `moneygram` |
+| Status updates | Webhook + status lookup + local status mapping |
+| Test mode | Sandbox flow with mock interactive session support |
+
+#### Wallet & User Prerequisites
+
+- The user must already have a **Stellar wallet** or wallet-plus record before using MoneyGram routes.
+- The integration settles against the user's Stellar account, so the wallet remains the destination/source of truth.
+- KYC/AML checks still apply because these are fiat and cash-handling operations.
+- The integration is environment-driven, with sandbox support for testing and production-ready configuration through `config/services.php`.
+
+If a user has neither `stellarWallet` nor `walletPlus`, `MoneyGramController` returns: `Wallet required. Please set up your wallet first.`
+
+<a id="configuration-surface"></a>
+#### Configuration Surface
+
+The integration is configured through environment and service configuration, including:
+
+- `MONEYGRAM_ENVIRONMENT`
+- `MONEYGRAM_BASE_URL`
+- `MONEYGRAM_HOME_DOMAIN`
+- `MONEYGRAM_SIGNING_KEY`
+- `services.moneygram.limits.on_ramp`
+- `services.moneygram.limits.off_ramp`
+- `services.moneygram.supported_currencies`
+- `services.moneygram.usdc.testnet.asset_issuer`
+- `services.moneygram.usdc.mainnet.asset_issuer`
+
+This allows the same wallet experience to operate in sandbox or production-style mode while switching the correct USDC issuer for testnet versus mainnet.
+
+<a id="moneygram-service-methods"></a>
+#### MoneyGram Service Methods
+
+The core integration is implemented in `MoneyGramRampsService`:
+
+- `initiateDeposit(User $user, float $amount, string $currency = 'USD'): array`
+- `initiateWithdrawal(User $user, float $amount, string $currency = 'USD'): array`
+- `getTransactionStatus(string $moneygramTransactionId): array`
+- `handleWebhook(array $payload): bool`
+
+Both methods validate amount limits, create MoneyGram-linked transaction records, and return an **interactive URL** plus user instructions for the next step in the SEP-24 flow.
+
+The service also sends `on_change_callback => route('moneygram.webhook')`, so provider-side status changes can flow back into Riwe's local transaction state.
+
+<a id="deposit-flow-cash-in-to-stellar-wallet"></a>
+#### Deposit Flow (Cash-In to Stellar Wallet)
+
+```text
+User -> /moneygram/deposit -> MoneyGramController::initiateDeposit()
+-> MoneyGramRampsService::initiateDeposit()
+-> MoneyGram interactive session / instructions
+-> User completes cash deposit with MoneyGram
+-> USDC settles into the user's Stellar wallet
+```
+
+<a id="withdrawal-flow-cash-out-from-stellar-wallet"></a>
+#### Withdrawal Flow (Cash-Out from Stellar Wallet)
+
+```text
+User -> /moneygram/withdrawal -> MoneyGramController::initiateWithdrawal()
+-> MoneyGramRampsService::initiateWithdrawal()
+-> MoneyGram interactive session / instructions
+-> User presents ID and reference at agent location
+-> Cash is collected while wallet-side transaction state is tracked in Riwe
+```
+
+#### Supported Currencies and Corridor Scope
+
+The broader MoneyGram configuration currently includes support for:
+
+- `USD`, `EUR`, `GBP`, `CAD`, `AUD`
+- `NGN`, `KES`, `GHS`, `ZAR`
+- `MXN`, `BRL`, `INR`
+- `PHP`, `THB`, `VND`, `IDR`, `MYR`, `SGD`
+
+At the controller validation layer, the main user-facing withdrawal flow currently enforces a narrower subset of supported currencies for operational safety.
+
+#### Limits and Asset Model
+
+- **Settlement asset**: USDC on Stellar
+- **Deposit limits**: minimum **$5**, maximum **$950**
+- **Withdrawal limits**: minimum **$5**, maximum **$2,500**
+- **Typical processing window**: around **5–15 minutes** depending on corridor and session status
+- **Provider tracking**: transactions are recorded with provider `moneygram` and linked through `FiatOnramp`
+
+Both `validateDepositAmount(...)` and `validateWithdrawalAmount(...)` enforce these limits before a MoneyGram session is created.
+
+#### Transaction Tracking and Local Persistence
+
+For both deposit and withdrawal, Riwe creates a local `FiatOnramp` record with MoneyGram-specific metadata. Important stored fields include:
+
+- `provider = moneygram`
+- `provider_reference`
+- `provider_transaction_id`
+- `type = deposit | withdrawal`
+- `status = initiated`
+- `crypto_currency = USDC`
+- metadata containing the raw MoneyGram response and the linked Stellar account
+
+This gives the wallet system an internal audit trail even before the external MoneyGram flow is complete.
+
+<a id="status-lifecycle-and-webhooks"></a>
+#### Status Lifecycle and Webhooks
+
+MoneyGram session state is tracked through both explicit lookups and webhook-driven updates.
+
+Typical provider or locally surfaced states include:
+
+| Provider / local signal | Meaning in the wallet flow |
+| --- | --- |
+| `pending_user_transfer_start` | User still needs to begin the deposit or withdrawal action |
+| `pending_anchor` / `pending_stellar` / `pending_external` | Processing is underway across provider or settlement infrastructure |
+| `pending_trust` / `pending_user` | Waiting on user-side or account-side preconditions |
+| `completed` | MoneyGram transaction completed successfully |
+| `error` / `incomplete` | Flow failed or did not complete |
+| `pending_pickup` | Internal/test-oriented state representing cash awaiting collection |
+
+The controller maps provider statuses into local application statuses such as `pending`, `processing`, `completed`, and `failed`.
+
+Webhook processing is exposed at `POST /moneygram/webhook`, and the service updates local transaction metadata with the incoming webhook payload and timestamp.
+
+#### Sandbox vs Production Behavior
+
+- In **sandbox**, the service returns a mock MoneyGram ID, a Riwe-hosted sandbox route, and plain-language instructions for testing the flow.
+- In **non-sandbox environments**, the service posts directly to the MoneyGram interactive transaction endpoints.
+- This means the frontend can keep a mostly consistent user experience while the backend switches between simulated and live provider behavior.
+
+#### Primary MoneyGram Endpoints
+
+- `GET /moneygram/info`
+- `GET /moneygram/options`
+- `POST /moneygram/deposit`
+- `POST /moneygram/withdrawal`
+- `GET /moneygram/transactions`
+- `GET /moneygram/transactions/{id}`
+- `POST /moneygram/webhook`
+- API equivalents are also exposed under `/api/moneygram`
+
+<a id="additional-route-groups"></a>
+#### Additional Route Groups
+
+Beyond the core user-facing endpoints above, the integration also exposes:
+
+- `/moneygram` for the authenticated web UI entry point
+- `/api/moneygram/*` for Sanctum-protected frontend or mobile integration
+- `/api/sep/interactive/*` for SEP-style interactive compatibility documented in the dedicated MoneyGram integration reference
+
+#### MoneyGram + Claims Payout Architecture Flow Diagram
+
+```mermaid
+flowchart TD;
+    U["User / Policyholder"];
+    W["Riwe DeFi Wallet / Stellar Account"];
+    MG["MoneyGram Ramps"];
+    B["Laravel Backend"];
+    POL["insurance-policy"];
+    C["insurance-claim"];
+    P["insurance-payment"];
+    O["parametric-oracle"];
+    F["FiatOnramp / Wallet Tx Records"];
+    CASH["Cash Deposit / Cash Pickup"];
+
+    U -->|"deposit / withdraw request"| B;
+    B -->|"initiateDeposit() / initiateWithdrawal()"| MG;
+    MG -->|"interactive URL + instructions"| U;
+    U -->|"cash handoff / pickup step"| CASH;
+    MG -->|"USDC settlement / redemption"| W;
+    B -->|"store MoneyGram transaction"| F;
+    MG -->|"webhook status update"| B;
+    B -->|"update local status"| F;
+
+    B -->|"get_latest_data(...)"| O;
+    O -->|"parametric data"| B;
+    B -->|"process_parametric_claim(...)"| C;
+    C -->|"get_policy(...)"| POL;
+    C -->|"process_claim_payout(...)"| P;
+    P -->|"wallet payout transfer"| W;
+    P -->|"mark_claim_paid"| C;
+    B -->|"record payout history"| F;
+
+    W -->|"hold, transfer, or cash out"| U;
+    W -->|"optional off-ramp"| MG;
+```
+
 ---
 
-## 🔒 Security & Compliance
+<a id="claims-payout-flow"></a>
+## Claims Payout Flow
+
+The DeFi wallet is not only a funding account for deposits and withdrawals; it is also the **settlement layer for insurance payouts**. When a claim is approved or automatically triggered, the payout ultimately lands in the user's Stellar wallet, where it can be retained, spent, or off-ramped.
+
+This section follows the same live 4-contract Soroban architecture described in `docs/04-Soroban-Overview.md` and `docs/05-Contract-Specifications.md`: `insurance-policy`, `insurance-claim`, `insurance-payment`, and `parametric-oracle`.
+
+### Why the Wallet Matters for Claims
+
+- The user's **Stellar wallet** is the primary destination for insurance payouts.
+- Payout history can be recorded as wallet-linked `StellarTransaction` records.
+- After settlement, the user can keep value on-chain or move it into a fiat/cash corridor such as MoneyGram.
+
+### On-Chain Contract Payout Architecture
+
+The live Soroban insurance suite uses the same four-contract structure documented elsewhere in the repo:
+
+| Contract / Service | Key function | Wallet relevance |
+| --- | --- | --- |
+| `insurance-policy` | policy lookup and policy-state source of truth | supplies policy context used during claim evaluation and payout calculation |
+| `parametric-oracle` | retained oracle data queried by the backend/operator | provides the external conditions used before claim processing is invoked |
+| `insurance-claim` | `process_parametric_claim(...)` | Evaluates oracle-backed claim conditions and decides whether payout should proceed |
+| `insurance-claim` | invokes `process_claim_payout(...)` | Hands settlement over to the payment contract |
+| `insurance-payment` | `process_claim_payout(env, claim_id, recipient, amount, asset)` | Validates asset, transfers payout, stores payment data, and marks claim as paid |
+| `StellarClaimService` | `processAutomaticPayout(...)` | Application-layer orchestration for automatic payout handling |
+| `StellarClaimService` | `sendPayoutToUser(...)` | Sends the payout into the user's Stellar wallet |
+| `StellarClaimService` | `recordPayoutTransaction(...)` | Records the payout in wallet-linked transaction history |
+| `StellarSmartContractService` | `processParametricPayout(...)` | Backend integration point for claim-payout smart-contract invocation |
+
+Within `insurance-payment`, `process_claim_payout(...)` checks that the payout asset is supported, transfers funds from the insurance pool to the claimant, stores the payment, and then calls `mark_claim_paid` back on the claim contract.
+
+### Automatic Parametric Payout Path
+
+For parametric insurance, the wallet payout lifecycle is:
+
+1. Authorized oracle data is captured and retained in `parametric-oracle`.
+2. The backend/operator supplies relevant data to `insurance-claim::process_parametric_claim(...)`.
+3. If thresholds are met and confidence is high enough, the claim contract triggers `insurance-payment::process_claim_payout(...)`.
+4. In the application layer, `StellarClaimService::processAutomaticPayout(...)` calculates the payout amount, calls `StellarSmartContractService::processParametricPayout(...)`, sends payout funds to the user's Stellar wallet, and records the payout transaction.
+5. The user then sees the payout as wallet-settled value that can be held or cashed out.
+
+### Claims Payout Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    actor U as User / Policyholder
+    participant O as parametric-oracle
+    participant B as Laravel Backend
+    participant Policy as insurance-policy
+    participant C as insurance-claim
+    participant P as insurance-payment
+    participant W as Stellar Wallet
+    participant R as Riwe Records
+
+    B->>O: get_latest_data(location)
+    O-->>B: parametric data
+    B->>C: process_parametric_claim(claim_id, data, oracle)
+    C->>Policy: get_policy(policy_id)
+    Policy-->>C: policy data
+    C->>C: Evaluate thresholds and confidence
+
+    alt Auto-approved payout
+        C->>P: process_claim_payout(claim_id, claimant, amount, asset)
+        P->>P: Validate supported token and pool balance
+        P->>W: Transfer payout asset to claimant wallet
+        P->>C: mark_claim_paid(claim_id, payment_contract)
+        P-->>B: payout_processed / result
+        B->>R: recordPayoutTransaction(...)
+        B-->>U: Payout completed in wallet
+    else Manual review required
+        C-->>B: Claim requires manual review
+        B-->>U: Await insurer decision
+    end
+```
+
+### Manual / Approved Claim Path
+
+Not all claims are auto-approved. In the manual path:
+
+1. An insurer reviews the claim.
+2. `InsurerController` updates claim status and, for approved claims, creates a `Payout` record.
+3. Settlement can then be executed through the wallet payout rail, with the Stellar wallet remaining the primary destination account.
+4. Once credited, the user may retain the funds in-wallet or route them to an off-ramp/cash-out option.
+
+### Wallet Settlement and Cash-Out Options
+
+Once a claim payout reaches the Stellar wallet, the user can:
+
+- keep the payout on Stellar for savings or later use;
+- use it as a balance source for future insurance-related or wallet-native operations;
+- cash out through supported off-ramp mechanisms, including the MoneyGram USDC corridor where applicable.
+
+### Operational Runbook: Payout to Cash-Out
+
+Use this lightweight operational flow when a claim payout is expected to end in a MoneyGram cash-out:
+
+1. **Confirm claim state**
+   - Verify the claim is approved or auto-approved.
+   - Confirm the payout path has completed through `insurance-payment::process_claim_payout(...)` and the claim has been marked paid.
+2. **Confirm wallet settlement**
+   - Verify the user's Stellar wallet has received the payout.
+   - Ensure the wallet balance intended for cash-out is held in the supported MoneyGram corridor asset, currently **USDC on Stellar**.
+3. **Validate operational prerequisites**
+   - Confirm the user has an active wallet record.
+   - Confirm KYC/compliance checks are satisfied.
+   - Confirm the requested withdrawal amount is within MoneyGram limits (**$5-$2,500**).
+4. **Initiate MoneyGram withdrawal**
+   - Use the authenticated withdrawal route: `POST /moneygram/withdrawal`.
+   - Return the interactive URL, provider reference, and instructions to the user.
+5. **Track status to completion**
+   - Monitor local `FiatOnramp` status, provider reference, and webhook updates.
+   - Treat `pending_user_transfer_start`, `pending`, `processing`, or `pending_pickup` as in-flight states.
+6. **Handle exceptions early**
+   - If there is no wallet, stop and resolve wallet setup first.
+   - If the asset or corridor is unsupported, do not route to MoneyGram until the wallet balance is aligned with the supported off-ramp path.
+   - If the transaction reaches `failed`, `error`, or `incomplete`, investigate the MoneyGram response payload before retrying.
+7. **Close out and reconcile**
+   - Mark the cash-out operationally complete only after the MoneyGram flow reaches a terminal success state.
+   - Keep the wallet transaction record and MoneyGram-linked `FiatOnramp` entry for audit and support follow-up.
+
+### Operational Notes
+
+- A wallet-backed Stellar destination is required for smooth payout settlement.
+- Automatic payout orchestration already exists in `StellarClaimService`, while the backend smart-contract integration points are aligned to the modular `insurance-claim` and `insurance-payment` contract design.
+- The wallet therefore acts as the bridge between on-chain insurance events and real-world cash-out rails.
+
+---
+
+<a id="security-compliance"></a>
+## Security & Compliance
 
 ### KYC/AML Integration
 ```php
@@ -799,7 +1158,8 @@ protected function assessTransactionRisk(DefiWallet $wallet, array $transactionD
 
 ---
 
-## 🔌 API Integration
+<a id="api-integration"></a>
+## API Integration
 
 ### REST API Endpoints
 ```php
@@ -827,6 +1187,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/defi-wallet/sync', [DefiWalletController::class, 'syncBalance']);
 });
 ```
+
+### MoneyGram API Surface
+
+The wallet system also exposes MoneyGram-specific routes alongside the generic `/defi-wallet/*` APIs:
+
+- **Web/Auth routes** under `/moneygram`
+- **API routes** under `/api/moneygram`
+- **Webhook route** for status updates at `/moneygram/webhook`
+- **Test-suite routes** under `/moneygram/api` for approval/sandbox support
+
+These endpoints provide service info, supported options, deposit and withdrawal initiation, and transaction status lookups for the MoneyGram cash-ramp corridor.
 
 ### API Response Examples
 ```json
@@ -1035,4 +1406,3 @@ public function syncWalletBalances(DefiWallet $wallet): array
 
 ---
 
-This DeFi Wallet system provides a comprehensive, secure, and user-friendly multi-network cryptocurrency wallet with seamless fiat integration, enabling users to easily access decentralized finance while maintaining regulatory compliance.
