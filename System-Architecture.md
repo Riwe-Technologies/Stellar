@@ -1,113 +1,97 @@
-# System Architecture. 
-## Complete Stellar Integration Architecture
+# System Architecture
+## Application, Wallet, Fiat, and Soroban Architecture
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
 2. [Core Components](#core-components)
-3. [Service Layer Architecture](#service-layer-architecture)
-4. [Database Architecture](#database-architecture)
-5. [Network Configuration](#network-configuration)
-6. [Security Architecture](#security-architecture)
-7. [Integration Patterns](#integration-patterns)
+3. [Database Architecture](#database-architecture)
+4. [Network Configuration](#network-configuration)
+5. [Security Architecture](#security-architecture)
+6. [Integration Patterns](#integration-patterns)
+
+**Related docs:** [04-Soroban-Overview.md](./04-Soroban-Overview.md) · [05-Contract-Specifications.md](./05-Contract-Specifications.md) · [08-DeFi-Wallet-System.md](./08-DeFi-Wallet-System.md)
 
 ---
 
-## 🏗️ Architecture Overview
+<a id="architecture-overview"></a>
+## Architecture Overview
+
+This document defines the system-level architecture used across the application documentation: Laravel backend orchestration, wallet infrastructure, fiat rails, application data services, and the live Soroban insurance contract suite on Stellar.
 
 ### High-Level System Design
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Client Applications                          │
+│                   Client / Access Channels                     │
 ├─────────────────────────────────────────────────────────────────┤
-│  Web App  │  Mobile  │  WhatsApp  │  USSD  │  API Clients      │
+│ Web App │ Mobile │ WhatsApp │ USSD │ External API Clients      │
 ├─────────────────────────────────────────────────────────────────┤
-│                      API Gateway                               │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │    REST     │  │  GraphQL    │  │  WebSocket  │             │
-│  │     API     │  │     API     │  │   Events    │             │
-│  └─────────────┘  └─────────────┘  └─────────────┘             │
+│ Application / Backend Layer                                    │
+│ • Auth / policy APIs       • Controllers / middleware          │
+│ • Oracle retrieval         • Claim / payout coordination       │
+│ • Webhooks / queues        • Admin / operational tooling       │
 ├─────────────────────────────────────────────────────────────────┤
-│                   Application Layer                            │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │ Controllers │  │ Middleware  │  │   Events    │             │
-│  │             │  │             │  │             │             │
-│  │ • Auth      │  │ • Security  │  │ • Webhooks  │             │
-│  │ • Wallet    │  │ • Rate Limit│  │ • Queues    │             │
-│  │ • Insurance │  │ • Validation│  │ • Broadcast │             │
-│  └─────────────┘  └─────────────┘  └─────────────┘             │
+│ Service & Wallet Infrastructure Layer                          │
+│ • StellarService              • StellarWalletService           │
+│ • StellarSmartContractService • StellarClaimService            │
+│ • DefiWalletService           • WalletPlusService              │
+│ • CustodialAddressService     • MoneyGramRampsService          │
 ├─────────────────────────────────────────────────────────────────┤
-│                    Service Layer                               │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │   Stellar   │  │ DeFi Wallet │  │ Wallet Plus │             │
-│  │  Services   │  │  Services   │  │  Services   │             │
-│  │             │  │             │  │             │             │
-│  │ • Network   │  │ • Multi-Net │  │ • Self-Cust │             │
-│  │ • Payments  │  │ • On/Off    │  │ • Device    │             │
-│  │ • Contracts │  │ • KYC/AML   │  │ • Biometric │             │
-│  │ • Security  │  │ • Exchange  │  │ • Recovery  │             │
-│  └─────────────┘  └─────────────┘  └─────────────┘             │
+│ Fiat Rails Layer                                               │
+│ • Paystack NGN flows       • MoneyGram USDC cash ramps         │
+│ • Provider references      • Webhook/status reconciliation     │
 ├─────────────────────────────────────────────────────────────────┤
-│                     Data Layer                                 │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │  PostgreSQL │  │    Redis    │  │   Storage   │             │
-│  │             │  │             │  │             │             │
-│  │ • Users     │  │ • Cache     │  │ • Files     │             │
-│  │ • Wallets   │  │ • Sessions  │  │ • Backups   │             │
-│  │ • Policies  │  │ • Queues    │  │ • Logs      │             │
-│  │ • Claims    │  │ • Rates     │  │ • Analytics │             │
-│  └─────────────┘  └─────────────┘  └─────────────┘             │
+│ Data Layer                                                     │
+│ • PostgreSQL application state  • Redis queues / cache         │
+│ • Wallet / policy / claim data  • Files / logs / analytics     │
 ├─────────────────────────────────────────────────────────────────┤
-│                  Blockchain Layer                              │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │   Stellar   │  │   Soroban   │  │ Multi-Chain │             │
-│  │  Network    │  │ Contracts   │  │ Integration │             │
-│  │             │  │             │  │             │             │
-│  │ • Horizon   │  │ • Insurance │  │ • Bitcoin   │             │
-│  │ • Payments  │  │ • Claims    │  │ • Ethereum  │             │
-│  │ • Assets    │  │ • Oracles   │  │ • Polygon   │             │
-│  │ • Anchors   │  │ • Governance│  │ • BSC/Tron  │             │
-│  └─────────────┘  └─────────────┘  └─────────────┘             │
+│ Stellar / Soroban Insurance Layer                              │
+│ • insurance-policy          • insurance-claim                  │
+│ • insurance-payment         • parametric-oracle                │
+├─────────────────────────────────────────────────────────────────┤
+│ Settlement and Exit Paths                                      │
+│ • Stellar wallet settlement  • Hold / transfer / cash-out      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Core Principles
-- **Microservices Architecture**: Modular, scalable service design
-- **Event-Driven**: Asynchronous processing and real-time updates
-- **Security-First**: Multi-layer security and encryption
-- **Blockchain-Native**: Deep integration with Stellar ecosystem
-- **Multi-Network**: Support for multiple blockchain networks
-- **Compliance-Ready**: Built-in KYC/AML and regulatory features
+- **Layered architecture first:** client channels, backend orchestration, wallet infrastructure, fiat rails, data services, and on-chain contracts are documented as separate concerns.
+- **Backend-mediated oracle flow:** oracle data is stored in `parametric-oracle`, retrieved by the backend, and then supplied to `insurance-claim`.
+- **Explicit contract boundaries:** `insurance-policy` manages policy state, `insurance-claim` evaluates claims, and `insurance-payment` executes payout settlement.
+- **Wallet-first settlement:** claim proceeds settle to the user's Stellar wallet before optional transfer or fiat off-ramp.
+- **Multi-network wallet support:** wallet services support multiple networks, while the insurance contract layer remains anchored on Stellar / Soroban.
+- **Compliance and traceability:** KYC/AML, provider references, webhook tracking, and auditable transaction state are treated as first-class system concerns.
+
+### Architecture Standards Alignment
+- The live on-chain architecture is the 4-contract Soroban suite: `insurance-policy`, `insurance-claim`, `insurance-payment`, and `parametric-oracle`.
+- The backend is the coordination boundary for oracle retrieval, claim processing, payout invocation, and wallet reconciliation.
+- Paystack and MoneyGram are application-layer fiat integrations, not deployed smart contracts.
+- This system architecture doc is aligned with `docs/04-Soroban-Overview.md`, `docs/05-Contract-Specifications.md`, and `docs/08-DeFi-Wallet-System.md`.
 
 ---
 
-## 🔧 Core Components
+<a id="core-components"></a>
+## Core Components
 
-### 1. Stellar Integration Layer
+The service layer is organized around Stellar / Soroban integration, wallet infrastructure, fiat rails, and self-custodial security. The sections below list representative services used by the current application.
+
+### 1. Stellar and Soroban Integration
 
 #### StellarService (Core)
 ```php
 class StellarService
 {
-    // Network management
     protected function initializeNetwork()
     protected function initializeSdk()
-    
-    // Account operations
+
     public function createAccount(): array
-    public function getAccountDetails(string $accountId): array
-    public function fundAccount(string $accountId, float $amount): array
-    
-    // Transaction operations
-    public function sendPayment(array $params): array
-    public function createTrustline(array $params): array
-    public function getTransactionHistory(string $accountId): array
-    
-    // Asset operations
-    public function createAsset(array $params): array
-    public function getAssetDetails(string $assetCode, string $issuer): array
+    public function fundTestnetAccount(string $accountId): bool
+    public function getAccountInfo(string $accountId): array
+    public function sendPayment(...)
+    public function createTrustline(...)
+    public function getNetworkConfig(): array
 }
 ```
 
@@ -115,18 +99,11 @@ class StellarService
 ```php
 class StellarWalletService
 {
-    // Wallet lifecycle
-    public function createWallet(User $user): StellarWallet
+    public function createWallet(User $user, bool $fundTestnet = true): StellarWallet
     public function getOrCreateWallet(User $user): StellarWallet
-    public function activateWallet(StellarWallet $wallet): array
-    
-    // Balance management
-    public function getBalance(StellarWallet $wallet): array
-    public function syncBalance(StellarWallet $wallet): array
-    
-    // Transaction processing
-    public function processPayment(array $params): array
-    public function processReceive(array $params): array
+    public function activateWallet(StellarWallet $wallet, string $fundingAmount = null): bool
+    public function sendPayment(...)
+    public function createTrustline(...)
 }
 ```
 
@@ -134,40 +111,28 @@ class StellarWalletService
 ```php
 class StellarSmartContractService
 {
-    // Contract deployment
-    public function deployContract(string $wasmPath, array $params): array
-    public function upgradeContract(string $contractId, string $wasmPath): array
-    
-    // Contract interaction
     public function invokeContract(string $contractId, string $method, array $params): array
-    public function queryContract(string $contractId, string $method, array $params): array
-    
-    // Insurance operations
     public function createPolicy(array $policyData): array
     public function submitClaim(array $claimData): array
-    public function processClaim(string $claimId): array
+    public function processParametricPayout(string $claimId, array $parametricData): array
 }
 ```
 
-### 2. DeFi Wallet System
+The backend uses these services to interact with the live Soroban contract suite and to coordinate wallet settlement around claim and payout flows. Automatic claim settlement is further coordinated in `StellarClaimService`.
+
+### 2. Wallet Infrastructure and Fiat Rails
 
 #### DefiWalletService
 ```php
 class DefiWalletService
 {
-    // Wallet management
     public function createOrGetWallet(User $user): DefiWallet
-    public function enableWallet(DefiWallet $wallet): array
-    public function disableWallet(DefiWallet $wallet): array
-    
-    // Multi-network support
+    public function syncWithStellarWallet(DefiWallet $wallet): array
+    public function enableWallet(User $user): array
     public function getWalletBalance(DefiWallet $wallet): array
-    public function syncAllBalances(DefiWallet $wallet): array
-    
-    // Fiat operations
-    public function initiateDeposit(DefiWallet $wallet, array $data): array
-    public function initiateWithdrawal(DefiWallet $wallet, array $data): array
-    public function processOnramp(FiatOnramp $onramp): array
+    public function initiateFiatDeposit(DefiWallet $wallet, array $depositData): array
+    public function initiateFiatWithdrawal(DefiWallet $wallet, array $withdrawalData): array
+    public function sendCrypto(DefiWallet $wallet, array $sendData): array
 }
 ```
 
@@ -175,19 +140,26 @@ class DefiWalletService
 ```php
 class CustodialAddressService
 {
-    // Address generation
     public function generateAddressesForWallet(DefiWallet $wallet): array
-    public function regenerateAddressesForWallet(DefiWallet $wallet): array
-    
-    // Network support
-    public function getSupportedNetworks(): array
     public function validateAddressFormat(string $address, string $network): bool
-    
-    // Address management
-    public function getAddressForNetwork(DefiWallet $wallet, string $network): ?string
-    public function updateWalletAddresses(DefiWallet $wallet, array $addresses): void
+    public function getSupportedNetworks(): array
+    public function regenerateAddressesForWallet(DefiWallet $wallet): array
 }
 ```
+
+#### MoneyGramRampsService
+```php
+class MoneyGramRampsService
+{
+    public function getInfo(): array
+    public function initiateDeposit(User $user, float $amount, string $currency = 'USD'): array
+    public function initiateWithdrawal(User $user, float $amount, string $currency = 'USD'): array
+    public function getTransactionStatus(string $moneygramTransactionId): array
+    public function handleWebhook(array $payload): bool
+}
+```
+
+This layer provides custodial wallet services, multi-network address management, NGN fiat flows through Paystack, and USDC cash-in / cash-out flows through MoneyGram.
 
 ### 3. Wallet Plus (Self-Custodial)
 
@@ -195,28 +167,20 @@ class CustodialAddressService
 ```php
 class WalletPlusService
 {
-    // Initialization
     public function initializeWalletPlus(User $user, array $setupData): array
-    public function setupDeviceBinding(WalletPlus $wallet, array $deviceData): array
-    
-    // Authentication
-    public function authenticateWithPin(WalletPlus $wallet, string $pin): array
-    public function authenticateWithBiometric(WalletPlus $wallet, array $biometricData): array
-    public function verifyMFA(WalletPlus $wallet, string $code): array
-    
-    // Recovery
-    public function initiateRecovery(string $email, array $recoveryData): array
-    public function completeRecovery(string $recoveryToken, array $newDeviceData): array
-    
-    // Cloud backup
-    public function createCloudBackup(WalletPlus $wallet, string $password): array
-    public function restoreFromCloudBackup(string $backupData, string $password): array
+    public function authenticateDevice(User $user, array $authData): array
+    public function prepareTransaction(User $user, array $transactionData): array
+    public function recoverWallet(User $user, array $recoveryData): array
+    public function signTransaction($user, $transactionData, $authData)
 }
 ```
 
+Wallet Plus complements the custodial wallet flows with device-bound authentication, recovery handling, and transaction signing for higher-assurance user-controlled operations.
+
 ---
 
-## 🗄️ Database Architecture
+<a id="database-architecture"></a>
+## Database Architecture
 
 ### Core Tables
 
@@ -308,6 +272,8 @@ claims (
 )
 ```
 
+The `stellar_smart_contracts` records should map to the live Soroban suite and related deployment metadata rather than legacy generic contract categories.
+
 ### Indexing Strategy
 ```sql
 -- Performance indexes
@@ -324,7 +290,8 @@ CREATE INDEX idx_policies_user_status ON insurance_policies(user_id, status);
 
 ---
 
-## 🌐 Network Configuration
+<a id="network-configuration"></a>
+## Network Configuration
 
 ### Stellar Network Setup
 ```php
@@ -364,9 +331,12 @@ CREATE INDEX idx_policies_user_status ON insurance_policies(user_id, status);
 ]
 ```
 
+Stellar remains the primary settlement network for policy, claim, and payout flows, while the additional configured networks are exposed through the wallet infrastructure layer for broader asset access.
+
 ---
 
-## 🔒 Security Architecture
+<a id="security-architecture"></a>
+## Security Architecture
 
 ### Multi-Layer Security
 ```
@@ -397,43 +367,35 @@ CREATE INDEX idx_policies_user_status ON insurance_policies(user_id, status);
 
 ---
 
-## 🔄 Integration Patterns
+<a id="integration-patterns"></a>
+## Integration Patterns
 
-### Event-Driven Architecture
+### Event and Webhook Processing
 ```php
-// Blockchain events
-Event::listen(StellarTransactionConfirmed::class, function ($event) {
-    // Update wallet balances
-    // Process insurance claims
-    // Send notifications
-});
-
-// Webhook processing
-Event::listen(PaystackWebhookReceived::class, function ($event) {
-    // Process fiat onramp
-    // Update transaction status
-    // Trigger crypto delivery
-});
+Route::post('/webhooks/paystack', [PaymentWebhookController::class, 'handlePaystack']);
+Route::post('/moneygram/webhook', [MoneyGramController::class, 'webhook']);
 ```
 
-### Queue Processing
+These public provider integrations update transaction state and trigger downstream wallet, fiat, and settlement reconciliation inside the application layer.
+
+### Queue and Command Processing
 ```php
-// Asynchronous operations
-Queue::push(new ProcessParametricClaim($claimId));
-Queue::push(new SyncWalletBalance($walletId));
-Queue::push(new SendNotification($userId, $message));
+php artisan insurance:process-parametric-claims
+
+PaySettlementJob::dispatch($settlement->id);
 ```
+
+Backend processing combines command-driven parametric evaluation, queued payout work, and application-layer contract invocation. Claim payout orchestration is handled in services such as `StellarClaimService`, while on-chain settlement uses `insurance-claim` and `insurance-payment`.
 
 ### API Integration
 ```php
-// RESTful API design
-Route::group(['prefix' => 'api/v1'], function () {
-    Route::post('/stellar/wallet/create', [StellarController::class, 'createWallet']);
-    Route::post('/defi-wallet/deposit', [DefiWalletController::class, 'initiateDeposit']);
-    Route::post('/wallet-plus/authenticate', [WalletPlusController::class, 'authenticate']);
-});
+Route::middleware(['auth:sanctum'])->prefix('stellar')->group(function () { ... });
+Route::middleware(['auth:sanctum'])->prefix('defi-wallet')->group(function () { ... });
+Route::prefix('api/moneygram')->middleware(['auth:sanctum'])->group(function () { ... });
 ```
+
+The application is currently REST-first: Stellar operations, DeFi wallet actions, and MoneyGram APIs are exposed through explicit route groups, while wallet-plus flows are primarily handled through authenticated web routes.
 
 ---
 
-This architecture provides a robust, scalable foundation for the complete Stellar integration system, supporting multiple wallet types, blockchain networks, and advanced security features while maintaining compliance and user experience standards.
+This architecture provides a robust and consistent foundation across the backend, wallet, fiat, data, and Soroban layers. By standardizing on the live 4-contract Soroban suite, backend-mediated oracle flow, and wallet-first settlement model, the application documentation now reflects the same operational boundaries and system standards end to end.
