@@ -8,7 +8,7 @@ The document is intentionally conservative. It separates:
 - current support and sandbox tooling
 - production hardening work that is still required
 
-Related docs: [TECHNICAL_ARCHITECTURE.md](../TECHNICAL_ARCHITECTURE.md) · [08-DeFi-Wallet-System.md](./DeFi-and-Moneygram-Claims-Payout.md) · [12-Fiat-Integration.md](./Fiat-Currencies.md)
+Related docs: [Technical Architecture.md](./Technical-Architecture.md) · [08-DeFi-Wallet-System.md](./DeFi-and-Moneygram-Claims-Payout.md) · [12-Fiat-Integration.md](./Fiat-Currencies.md)
 
 ## Contents
 
