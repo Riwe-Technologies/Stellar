@@ -9,7 +9,7 @@ The document is intentionally conservative. It distinguishes between:
 - current documented Soroban deployment architecture
 - planned work required for fuller end-to-end mainnet readiness
 
-Related docs: [docs/01-System-Architecture.md](./System-Architecture.md) · [docs/04-Soroban-Overview.md](./Soroban-Smart-Contracts-Overview.md) · [docs/05-Contract-Specifications.md](./docs/05-Contract-Specifications.md) · [docs/08-DeFi-Wallet-System.md](./DeFi-and-Moneygram-Claims-Payout.md) · [docs/MONEYGRAM_INTEGRATION.md](./MONEYGRAM_INTEGRATION.md)
+Related docs: [docs/01-System-Architecture.md](./System-Architecture.md) · [docs/04-Soroban-Overview.md](./Soroban-Smart-Contracts-Overview.md) · [docs/05-Contract-Specifications.md](./docs/05-Contract-Specifications.md) · [docs/08-DeFi-Wallet-System.md](./DeFi-and-Moneygram-Claims-Payout.md) · [docs/MONEYGRAM_INTEGRATION.md](./Moneygram-Integration.md)
 
 ## Contents
 
