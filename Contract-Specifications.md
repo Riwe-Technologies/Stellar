@@ -49,39 +49,39 @@ The system follows the standard Soroban pattern of **Rust contract code -> WASM 
 ### Architecture Flow Diagram
 
 ```mermaid
-flowchart TD
-    U[Policyholder / Farmer]
-    B[Laravel Backend / Operator]
-    P[insurance-policy]
-    C[insurance-claim]
-    PAY[insurance-payment]
-    O[parametric-oracle]
-    ORA[Authorized Oracle]
-    S[(Soroban Storage)]
-    T[Token / Asset Flow]
+flowchart TD;
+    U["Policyholder / Farmer"];
+    B["Laravel Backend / Operator"];
+    P["insurance-policy"];
+    C["insurance-claim"];
+    PAY["insurance-payment"];
+    O["parametric-oracle"];
+    ORA["Authorized Oracle"];
+    S[("Soroban Storage")];
+    T["Token / Asset Flow"];
 
-    U -->|purchase request| B
-    B -->|create_policy(...)| P
-    P -->|policy records| S
+    U -->|"purchase request"| B;
+    B -->|"create_policy(...)"| P;
+    P -->|"policy records"| S;
 
-    U -->|premium payment| B
-    B -->|process_premium(...)| PAY
-    PAY -->|payment state / pool accounting| S
-    PAY --> T
+    U -->|"premium payment"| B;
+    B -->|"process_premium(...)"| PAY;
+    PAY -->|"payment state / pool accounting"| S;
+    PAY --> T;
 
-    U -->|claim submission| B
-    B -->|submit_claim(...)| C
-    C -->|get_policy(policy_id)| P
-    C -->|claim records| S
+    U -->|"claim submission"| B;
+    B -->|"submit_claim(...)"| C;
+    C -->|"get_policy(policy_id)"| P;
+    C -->|"claim records"| S;
 
-    ORA -->|submit_data(...)| O
-    O -->|oracle submissions| S
-    B -->|get_latest_data(...)| O
-    B -->|process_parametric_claim(...)| C
-    C -->|get_policy(policy_id)| P
-    C -->|process_claim_payout(...)| PAY
-    PAY -->|payout records| S
-    PAY --> T
+    ORA -->|"submit_data(...)"| O;
+    O -->|"oracle submissions"| S;
+    B -->|"get_latest_data(...)"| O;
+    B -->|"process_parametric_claim(...)"| C;
+    C -->|"get_policy(policy_id)"| P;
+    C -->|"process_claim_payout(...)"| PAY;
+    PAY -->|"payout records"| S;
+    PAY --> T;
 ```
 
 ### Shared Components
