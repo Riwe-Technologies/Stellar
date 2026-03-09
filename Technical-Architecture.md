@@ -517,7 +517,7 @@ The intended future-state operating model is:
 
 Riwe's current architecture is already meaningfully built around Stellar. The application has a real wallet layer, a real Soroban contract suite, real claim-orchestration services, and a real MoneyGram integration surface. At the same time, the platform is still in a transition stage between a documented target architecture and a fully production-hardened end-to-end implementation.
 
-The correct technical reading today is therefore:
+In Essence,
 
 - Stellar is the core settlement network
 - Soroban is the canonical contract architecture
