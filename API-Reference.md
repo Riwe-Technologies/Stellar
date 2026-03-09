@@ -1,9 +1,9 @@
 # API Reference
-## Complete REST API Documentation for Stellar Integration
+## Complete REST API Documentation for Wallet, Fiat, Insurance, and Soroban Services
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 1. [Authentication](#authentication)
 2. [Stellar Wallet APIs](#stellar-wallet-apis)
@@ -15,7 +15,7 @@
 
 ---
 
-## 🔐 Authentication
+## Authentication
 
 ### API Authentication Methods
 All API endpoints require authentication using one of the following methods:
@@ -85,7 +85,7 @@ Refresh access token.
 
 ---
 
-## 🌟 Stellar Wallet APIs
+## Stellar Wallet APIs
 
 ### GET /api/stellar/wallet
 Get user's Stellar wallet information.
@@ -205,7 +205,7 @@ Get transaction history.
 
 ---
 
-## 💰 DeFi Wallet APIs
+## DeFi Wallet APIs
 
 ### GET /api/defi-wallet
 Get DeFi wallet information.
@@ -356,7 +356,7 @@ Get real-time wallet balances.
 
 ---
 
-## 🔐 Wallet Plus APIs
+## Wallet Plus APIs
 
 ### POST /api/wallet-plus/initialize
 Initialize Wallet Plus (self-custodial).
@@ -463,7 +463,7 @@ Execute transaction with Wallet Plus.
 
 ---
 
-## 🛡️ Insurance APIs
+## Insurance APIs
 
 ### GET /api/insurance/policies
 Get user's insurance policies.
@@ -568,7 +568,7 @@ Submit insurance claim.
 
 ---
 
-## 📊 Smart Contract APIs
+## Smart Contract APIs
 
 ### POST /api/contracts/call
 Call smart contract method.
@@ -576,7 +576,7 @@ Call smart contract method.
 **Request:**
 ```json
 {
-  "contract_name": "insurance_core",
+  "contract_name": "insurance-policy",
   "method": "get_policy",
   "parameters": ["POL-1234567890"],
   "source_account": "GDQNY3PBOOC637UEUUV7JBQQ5KGWT2IEQYDNYZXJJBVUV6VQZF6NNQZR"
@@ -593,7 +593,7 @@ Call smart contract method.
     "status": "active",
     "coverage_amount": 500000
   },
-  "contract_address": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHAGK3HNX",
+  "contract_address": "CCRXGROY4THHIB7QRGMJHBXXN7TPMVEYGBBEFVKGWQXOYH4RHJDB3SHR",
   "transaction_hash": "a1b2c3d4e5f6..."
 }
 ```
@@ -607,18 +607,17 @@ Get all contract addresses for current network.
   "success": true,
   "network": "mainnet",
   "contracts": {
-    "insurance_core": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHAGK3HNX",
-    "crop_insurance": "CBLITZKRIT5GMUJ7IMBD5BG65PVDGKPQHKZPARMKP7THXNWTNZP6ANBE",
-    "weather_oracle": "CCJZ5DGAKVWZI5DTQPWLMUQGCQHH46KQJPFZQDYDAPSQIBD6QPJBYXZX",
-    "defi_lending": "CAIXKFNXLFOMSYQCLFWQMFIIGQMVCPJBFX6RQIOKRXJF5QJWLXP6ANBE",
-    "governance": "CBMWGKREPQVUZENKD2TTVT7W7RDCXFKPJHGBQCQHH46KQJPFZQDYDAPS"
+    "insurance-policy": "CCRXGROY4THHIB7QRGMJHBXXN7TPMVEYGBBEFVKGWQXOYH4RHJDB3SHR",
+    "insurance-claim": "CCFYJDOFQAQT5DVB2UNU4SWOXMVFLLVWNG47J6G5ZPQGPDMRWSXO75WQ",
+    "insurance-payment": "CAWLYJZHPSZ7YLXGTAPARWEW27GNDQ7ZLJVWW5RKN27XKSOJOGRDPEVT",
+    "parametric-oracle": "CBYGCVAFPPYVLKWZE2XQKX6RMPLBCNBZKWOVHTJIJX3LSRNYRZSI7TTM"
   }
 }
 ```
 
 ---
 
-## 🌤️ Oracle APIs
+## Oracle APIs
 
 ### GET /api/oracle/weather
 Get weather data for location.
@@ -641,7 +640,7 @@ Get weather data for location.
     "rainfall": 15.2,
     "humidity": 78.5,
     "wind_speed": 12.3,
-    "data_source": "weather_oracle_contract"
+    "data_source": "parametric-oracle"
   }
 }
 ```
@@ -686,7 +685,7 @@ Verify weather triggers for insurance.
 
 ---
 
-## 📝 Error Responses
+## Error Responses
 
 ### Standard Error Format
 ```json
