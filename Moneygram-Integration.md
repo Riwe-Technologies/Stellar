@@ -431,15 +431,3 @@ Before this integration should be presented as production-hardened, the followin
 6. formalize KYC and compliance enforcement across controller, provider, and support workflows
 7. document operational runbooks for failed, incomplete, delayed, or disputed transactions
 8. add targeted automated tests around MoneyGram status handling, webhook processing, and transaction reconciliation
-
-## Conclusion
-
-Riwe has a real MoneyGram integration surface today: configuration, routes, controller logic, service orchestration, sandbox behavior, and local transaction persistence are all present in the application.
-
-The most accurate technical description of the current state is:
-
-- MoneyGram is a backend-managed USDC cash-ramp for Stellar wallets and is intended to support premium-payment and claim-settlement business flows
-- the current implementation is interactive and sandbox-first
-- local transaction tracking is implemented through `FiatOnramp`
-- the current code expresses those business flows through wallet-linked deposit and withdrawal operations rather than dedicated insurance-specific MoneyGram endpoints
-- additional reconciliation, webhook-verification, and production-readiness work is still required before the integration should be documented as fully production-hardened or formally approved
