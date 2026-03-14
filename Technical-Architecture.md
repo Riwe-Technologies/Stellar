@@ -18,13 +18,21 @@ Related docs: [System-Architecture.md](./System-Architecture.md) · [Smart Contr
 - [Current system topology](#current-system-topology)
 - [Current Stellar integration](#current-stellar-integration)
 - [Current Soroban contract architecture](#current-soroban-contract-architecture)
+- [Contract naming alignment](#contract-naming-alignment)
 - [Current wallet and settlement model](#current-wallet-and-settlement-model)
 - [Current MoneyGram architecture](#current-moneygram-architecture)
 - [Operational data model](#operational-data-model)
 - [Security, observability, and controls](#security-observability-and-controls)
 - [Current implementation boundaries](#current-implementation-boundaries)
 - [Planned Stellar and MoneyGram roadmap](#planned-stellar-and-moneygram-roadmap)
+  - [Planned Stellar roadmap](#planned-stellar-roadmap)
+  - [Planned MoneyGram roadmap](#planned-moneygram-roadmap)
+  - [Planned SEP-30 account recovery](#planned-sep-30-account-recovery)
+  - [Planned TypeScript SDK and developer ecosystem](#planned-typescript-sdk-and-developer-ecosystem)
+  - [Planned oracle infrastructure — Acurast integration](#planned-oracle-infrastructure--acurast-integration)
+  - [Target future-state architecture](#target-future-state-architecture)
 - [Conclusion](#conclusion)
+
 
 ## Platform baseline
 
@@ -41,6 +49,8 @@ Riwe currently operates as a Laravel-based application platform with PostgreSQL-
 | Current contract suite | `insurance-policy`, `insurance-claim`, `insurance-payment`, `parametric-oracle` |
 | Fiat rails | Paystack for bank-oriented flows, MoneyGram for Stellar USDC cash ramps |
 | Current contract deployment posture | Documented on Stellar testnet; no mainnet deployment documented yet |
+| Oracle data provider | Sentinel Hub via Copernicus Data Space Ecosystem (NDVI, EVI, weather telemetry) |
+| Planned decentralised oracle layer | Acurast TEE-based compute (scoped for T2) |
 
 ## Architecture principles
 
@@ -204,6 +214,20 @@ The authoritative live contract model is the modular four-contract Soroban insur
 
 In runtime configuration, these are sourced from environment-backed values in `config/stellar.php` under `stellar.insurance`.
 
+## Contract naming alignment
+
+> **Note for SCF reviewers:** The application narrative references three contracts by functional name. These map to the four-contract suite as follows:
+>
+> | Application narrative name | Tech doc contract | Role |
+> | --- | --- | --- |
+> | Policy Factory | `insurance-policy` | Risk position minting and policy lifecycle |
+> | Climate Oracle | `parametric-oracle` | Verifiable environmental data ingestion |
+> | Claim Engine | `insurance-claim` + `insurance-payment` | Claim validation and automated SAC disbursement |
+>
+> The Claim Engine is the end-user-facing settlement primitive. The `insurance-payment` contract operates as its internal disbursement layer.
+
+
+
 ### Contract interaction model
 
 The intended contract relationship remains:
@@ -260,6 +284,11 @@ Important current components include:
 - satellite/vegetation retrieval through `CopernicusService`
 - claim orchestration through `StellarClaimService`
 - wallet payout dispatch through `StellarService` and `StellarWalletService`
+
+### Sentinel Hub as named data provider
+
+Satellite and vegetation index retrieval is handled through `CopernicusService`, sourcing NDVI and EVI data from **Sentinel Hub** via the Copernicus Data Space Ecosystem. Sentinel Hub is the named data provider for all NDVI and weather telemetry referenced across the SCF grant deliverables. The current backend-mediated flow retrieves this data and submits it to the `parametric-oracle` contract as an authorised operator. The planned Acurast integration (see below) will replace this centralised submission path with a TEE-verified feed from the same Sentinel Hub data source.
+
 
 In `StellarClaimService`, the current application flow includes:
 
@@ -503,6 +532,48 @@ MoneyGram-specific production work should include:
 - hardening reporting, audit trails, and support tooling for fiat/cash exceptions
 - aligning production wallet trustlines, asset issuers, and user UX with the final Stellar network mode
 
+
+### Planned SEP-30 account recovery
+
+SEP-30 account recovery will be implemented in T3 to provide delegated key management and improved security for partner-managed customer accounts. This enables institutional partners — including Leadway Assurance and NIA-member banks — to manage policy accounts on behalf of their farmer and cooperative customer bases without requiring end users to self-custody private keys.
+
+**Planned SEP-30 work includes:**
+
+- SEP-30 contract implementation and key recovery flow integration
+- Partner-facing account delegation and recovery tooling
+- Integration testing with onboarded institutional partners
+- Documentation for partner technical teams
+
+### Planned TypeScript SDK and developer ecosystem
+
+A public TypeScript SDK and NPM package will be released in T3 at `riwe.io/developers`, exposing the following protocol primitives for third-party developers:
+
+- policy issuance and lifecycle management
+- oracle data reads from the `parametric-oracle` contract
+- claim submission and status polling
+- settlement and payout orchestration
+
+
+### Planned oracle infrastructure — Acurast integration
+
+The current oracle model is backend-mediated: the Laravel application retrieves satellite and weather data from Sentinel Hub and submits it to the `parametric-oracle` contract as an authorised operator. This is a functional model but relies on a centralised submission path.
+
+The planned oracle upgrade, scoped for T2 delivery, replaces this with an **Acurast TEE-based oracle service**. Acurast is a decentralised compute layer that runs off-chain jobs inside Trusted Execution Environments (TEEs), producing verifiable, tamper-resistant data submissions without relying on a single centralised operator.
+
+**Why Acurast was chosen:**
+
+- It is the most Stellar-native decentralised compute option currently available
+- TEE attestation provides a stronger trust model for parametric insurance triggers than a centralised backend submission
+- Acurast's job-based architecture maps cleanly to the periodic NDVI and weather telemetry ingestion pattern the protocol requires
+
+**Planned Acurast integration work includes:**
+
+- Acurast node registration and TEE environment provisioning (T0)
+- Job configuration for periodic Sentinel Hub telemetry retrieval
+- On-chain submission of verified NDVI and weather data to the `parametric-oracle` contract
+- Replacement of the current backend-mediated oracle submission path with the Acurast-verified flow
+- Documented API endpoints demonstrating live telemetry ingestion and on-chain Oracle contract updates
+
 ### Target future-state architecture
 
 The intended future-state operating model is:
@@ -512,15 +583,19 @@ The intended future-state operating model is:
 3. wallet settlement remains the primary handoff point between insurance logic and cash-out channels
 4. MoneyGram operates as a production off-ramp for Stellar-based USDC settlement
 5. mainnet operations are backed by stronger treasury controls, monitoring, and release governance
+6. Acurast TEE-based oracle submissions replace the current backend-mediated oracle path, providing verifiable, decentralised trigger data for all parametric claim settlements
+7. A public TypeScript SDK enables third-party ecosystem developers to integrate parametric insurance primitives directly, extending the protocol's reach beyond the `riwe.io` dApp to agri-fintech builders across the Stellar ecosystem
 
 ## Conclusion
 
-Riwe's current architecture is already meaningfully built around Stellar. The application has a real wallet layer, a real Soroban contract suite, real claim-orchestration services, and a real MoneyGram integration surface. At the same time, the platform is still in a transition stage between a documented target architecture and a fully production-hardened end-to-end implementation.
+Riwe's current architecture is already meaningfully built around Stellar. The platform has a real wallet layer, a real four-contract Soroban suite deployed on testnet, real claim-orchestration services, and a real MoneyGram integration surface backed by documented configuration, route surfaces, and transaction lifecycle handling.
 
-In Essence,
+The SCF42 grant funds the remaining work required to complete this architecture — replacing placeholder contract methods with fully wired on-chain logic, activating the Acurast oracle to replace centralised data submission, validating the MoneyGram SEP-24 cash-out flow end to end on testnet, and deploying the complete protocol to Stellar mainnet with institutional partner onboarding and a public TypeScript SDK.
 
 - Stellar is the core settlement network
 - Soroban is the canonical contract architecture
-- MoneyGram is the current USDC cash-ramp integration at the application layer
-- wallet-first settlement is the operational bridge across claims and cash-out
-- additional work is still required before the entire flow should be treated as fully mainnet-ready
+- Sentinel Hub is the named climate data provider
+- Acurast is the planned decentralised oracle layer
+- MoneyGram is the USDC cash-ramp integration for last-mile farmer payouts
+- Wallet-first settlement is the operational bridge across claims and cash-out
+- T1 completes the contract logic, T2 deploys and activates the oracle, T3 launches to mainnet
