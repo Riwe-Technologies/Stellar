@@ -153,7 +153,7 @@ sequenceDiagram
     Payment-->>Claim: payout confirmed — USDC transferred
     Claim-->>App: claim status → Paid
     App-->>Farmer: Notification — payout sent to Stellar wallet
-    Note over Farmer: SEP-24 MoneyGram withdrawal → NGN cash at agent point
+    Note over Farmer: SEP-24 MoneyGram withdrawal → NGN cash at agent point (T2 deliverable)
 ```
 
 ---
@@ -626,4 +626,4 @@ This separation is standard for regulated fintech applications using blockchain 
 
 ---
 
-*Riwe Technologies Limited · riwe.io · partnerships@riwe.io*
+*Riwe Technologies Limited · RC 1899524 · riwe.io · hello@riwe.io*
