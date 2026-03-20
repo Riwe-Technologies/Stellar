@@ -35,8 +35,8 @@ The four contracts are:
 |---|---|---|
 | `insurance-policy` | Policy registry and lifecycle management | ✅ Deployed |
 | `insurance-claim` | Claim evaluation and payout authorisation | ✅ Deployed |
-| `insurance-payment` | Premium collection and USDC payout execution | ✅ Deployed |
-| `parametric-oracle` | Acurast-verified satellite data ingestion | ✅ Deployed |
+| `insurance-payment` | Premium collection and USDC payout execution | TBD |
+| `parametric-oracle` | Acurast-verified satellite data ingestion | TBD |
 
 Together, these contracts implement the on-chain layer of Riwe's end-to-end parametric insurance protocol: a farmer buys a policy, satellite data confirms a climate event, and USDC is automatically released to the farmer's Stellar wallet — no adjuster, no paperwork, no bank account required.
 
