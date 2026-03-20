@@ -53,7 +53,7 @@ Before going into technical detail, here is what each contract does in operation
 
 | Contract | What it does for a farmer |
 |---|---|
-| `insurance-policy` | Records that Adaeze's farm in Benue State is insured for the 2025 maize season, with a drought trigger set at NDVI < 0.3 |
+| `insurance-policy` | Records that Adaeze's farm in Benue State is insured for the 2026 maize season, with a drought trigger set at NDVI < 0.3 |
 | `parametric-oracle` | Receives Sentinel Hub satellite data confirming that Adaeze's farm polygon recorded NDVI 0.21 on August 14th |
 | `insurance-claim` | Evaluates the trigger condition, confirms the oracle data is fresh and signed, and authorises a ₦48,000 payout |
 | `insurance-payment` | Releases USDC from the insurance pool to Adaeze's Stellar wallet, which she then withdraws as cash through a MoneyGram agent |
@@ -145,7 +145,7 @@ This section describes a complete parametric insurance lifecycle — from policy
 
 ### Step 1 — Policy purchase and on-chain registration
 
-A farmer in Benue State accesses Riwe via USSD (`*384#`) or the mobile app. They select a maize insurance product for their GPS-tagged farm polygon covering the 2025 growing season. Premium is collected via MTN Mobile Money through Paystack (NGN).
+A farmer in Benue State accesses Riwe via USSD (`*384#`) or the mobile app. They select a maize insurance product for their GPS-tagged farm polygon covering the 2026 growing season. Premium is collected via MTN Mobile Money through Paystack (NGN).
 
 The Laravel backend calls `StellarSmartContractService::createPolicy()`, which invokes the `insurance-policy` Soroban contract. The policy is stored on-chain with:
 - farm GPS coordinates
@@ -154,7 +154,7 @@ The Laravel backend calls `StellarSmartContractService::createPolicy()`, which i
 - parametric trigger conditions (e.g. NDVI < 0.3 for 14 consecutive days)
 - policy term dates
 
-A USDC equivalent of the premium is deposited into the `insurance-payment` pool via `processPayment()`.
+A USDC equivalent of the premium is deposited into the `insurance-payment` pool via `process_premium()`.
 
 ### Step 2 — In-season satellite monitoring
 
@@ -183,18 +183,18 @@ The `insurance-claim` contract:
 4. Updates claim state before external calls (CHECKS-EFFECTS-INTERACTIONS pattern)
 5. Calls `insurance-payment` to execute the USDC payout
 
-### Step 4 — USDC settlement and last-mile disbursement
+### Step 4 — USDC settlement and last-mile disbursement (designed flow)
 
 `insurance-payment` transfers USDC from the insurance pool to the farmer's Stellar wallet address. The transaction is recorded on Stellar with full traceability.
 
-The farmer is notified via SMS. They initiate a cash withdrawal through the Riwe app or by visiting a MoneyGram agent. The withdrawal flow uses **SEP-24** (interactive withdrawal) with **SEP-10** wallet authentication:
+The farmer is notified via SMS. The designed last-mile disbursement flow — which is the **T1 UX/UI deliverable** and **T2 integration deliverable** — works as follows:
 
 1. Farmer authenticates with their Stellar wallet via SEP-10 challenge/response
 2. MoneyGram's SEP-24 anchor initiates the interactive withdrawal flow
 3. USDC is converted to NGN at the prevailing exchange rate
 4. NGN is disbursed at the MoneyGram agent point within 48 hours
 
-The full lifecycle — from satellite trigger to cash in hand — is completed in under 48 hours. Every step is traceable on Stellar.
+The UX/UI designs for this full flow are delivered in T1. The live SEP-24 integration with the MoneyGram anchor is built and validated in T2, including an end-to-end video walkthrough of the completed withdrawal flow.
 
 ---
 
@@ -260,22 +260,22 @@ This section explicitly maps Riwe's use of Stellar ecosystem protocols and tools
 
 ### SEP-10 — Stellar Web Authentication
 
-Used for wallet authentication throughout the application. Farmers and partner institutions authenticate with their Stellar keypair via a challenge/response flow. The Laravel backend verifies SEP-10 JWT tokens before authorising contract invocations or fiat withdrawals.
+The planned authentication mechanism for all wallet operations in the application. Farmers and partner institutions will authenticate with their Stellar keypair via a challenge/response flow. The Laravel backend will verify SEP-10 JWT tokens before authorising contract invocations or fiat withdrawals. SEP-10 backend integration is a **T2 Deliverable 1**.
 
 ### SEP-24 — Interactive Anchor Deposit and Withdrawal
 
-The primary mechanism for farmer payouts. After USDC settles to a farmer's Stellar wallet:
+The planned mechanism for farmer payouts. Once USDC settles to a farmer's Stellar wallet, the SEP-24 flow is designed to work as follows:
 
 1. The Riwe app initiates a SEP-24 withdrawal with the MoneyGram anchor
 2. MoneyGram's interactive flow handles KYC verification and exchange rate confirmation
 3. USDC is debited from the farmer's Stellar wallet
 4. NGN is disbursed at a MoneyGram agent point
 
-SEP-24 is also used for premium collection — Nigerian farmers can deposit NGN via Paystack, which is converted to USDC and credited to their Stellar wallet for premium payment.
+The UX/UI designs covering this complete flow — authentication, policy purchase, claim trigger, and MoneyGram withdrawal — are the **T1 Deliverable 3**. Backend integration with the SEP-24 anchor and end-to-end validation against the MoneyGram test anchor are **T2 Deliverables 1 and 3**.
 
 ### SEP-6 — Programmatic Anchor Deposit and Withdrawal
 
-Used for B2B partner integrations (insurers, MFBs) where interactive flows are not required. Partner institutions can programmatically deposit into and withdraw from the insurance pool without a browser-based interaction.
+Planned for B2B partner integrations (insurers, MFBs) where interactive flows are not required. Partner institutions will be able to programmatically deposit into and withdraw from the insurance pool without a browser-based interaction. This is part of the T2 backend Soroban RPC integration deliverable.
 
 ### USDC on Stellar
 
@@ -287,7 +287,7 @@ USDC is the primary settlement asset throughout the contract suite. The `insuran
 
 ### MoneyGram Access
 
-Riwe integrates MoneyGram's Stellar-native Access product for last-mile NGN disbursement. MoneyGram operates as a SEP-24 anchor on Stellar, enabling USDC-to-NGN conversion and cash disbursement through its agent network across Nigeria, Kenya, and Ghana — the same markets where Riwe operates.
+Riwe is designed to use MoneyGram's Stellar-native Access product for last-mile NGN disbursement. MoneyGram operates as a SEP-24 anchor on Stellar, enabling USDC-to-NGN conversion and cash disbursement through its agent network across Nigeria, Kenya, and Ghana — the same markets where Riwe operates. The SEP-24 integration with MoneyGram's live anchor is a **T2 deliverable**, validated end-to-end in T2 Deliverable 3.
 
 ### Horizon and Soroban RPC
 
@@ -555,11 +555,11 @@ Both deployed Testnet contracts can be verified on [Stellar Expert](https://stel
 |---|---|
 | `insurance-policy` Soroban contract | ✅ Deployed on Testnet |
 | `insurance-claim` Soroban contract | ✅ Deployed on Testnet |
-| `insurance-payment` contract | ✅ Source complete |
-| `parametric-oracle` contract | ✅ Source complete |
+| `insurance-payment` contract | 🔲 Source complete — T2 deployment |
+| `parametric-oracle` contract | 🔲 Source complete — T2 deployment |
 | Laravel `StellarSmartContractService` | ✅ Integrated |
-| SEP-10 wallet authentication | ✅ Integrated |
-| MoneyGram SEP-24 service layer | ✅ Integrated |
+| SEP-10 wallet authentication | 🔲 T2 deliverable — backend extension |
+| MoneyGram SEP-24 service layer | 🔲 T2 deliverable — E2E validation in T2 D3 |
 | Sentinel Hub data retrieval | ✅ Operational off-chain |
 
 ### What this SCF submission funds
@@ -572,6 +572,7 @@ Both deployed Testnet contracts can be verified on [Stellar Expert](https://stel
 | T2 — Testnet deployment | All four contracts deployed; public dApp at riwe.io |
 | T2 — Acurast oracle activation | Live Sentinel Hub → TEE → parametric-oracle pipeline |
 | T2 — Partner underwriting console | SEP-7 dashboard for insurers and MFB partners |
+| T2 — E2E integration and MoneyGram simulation | Full lifecycle test; SEP-24 video walkthrough |
 | T3 — Mainnet deployment | SDF-audited contracts; TypeScript SDK; NPM package |
 | T3 — Institutional onboarding | Leadway Assurance and NIA-member bank integrations |
 | T3 — Infrastructure monitoring | Datadog stack at riwe.io/status |
