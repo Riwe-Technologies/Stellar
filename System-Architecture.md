@@ -24,9 +24,9 @@
 
 Riwe is a parametric climate insurance protocol for smallholder farmers in Africa. The system architecture described here enables one specific outcome: **a farmer who experiences a drought or flood receives a verified cash payout within 48 hours, without filing a claim, visiting a bank, or speaking to an adjuster.**
 
-Every architectural decision — the Soroban contract suite, the Acurast oracle pipeline, the MoneyGram SEP-24 integration, the Laravel backend — exists in service of that outcome.
+Every architectural decision — the Soroban contract suite, the Acurast oracle pipeline, the MoneyGram SEP-24 integration (T2), the Laravel backend — exists in service of that outcome.
 
-This document maps the full system stack: from the USSD channel a farmer uses to buy a policy, through the satellite data pipeline that detects a climate event, through the Soroban contracts that settle the payout, to the MoneyGram agent point where the farmer collects cash.
+This document maps the full system stack: from the USSD channel a farmer uses to buy a policy, through the satellite data pipeline that detects a climate event, through the Soroban contracts that settle the payout, to the MoneyGram agent point where the farmer will collect cash once the SEP-24 integration is live in T2.
 
 ---
 
@@ -97,7 +97,7 @@ The `parametric-oracle` contract stores verified Acurast satellite data. The Lar
 `insurance-policy` owns policy state. `insurance-claim` owns claim decisions. `insurance-payment` owns pool accounting. Each contract has a single responsibility, which improves auditability and allows targeted upgrades.
 
 **Wallet-first settlement.**
-All claim payouts settle to the farmer's Stellar wallet first. From there, the farmer can hold USDC, send it to another wallet, or withdraw as NGN cash via MoneyGram SEP-24. This model supports both banked and unbanked users without requiring a bank integration.
+All claim payouts settle to the farmer's Stellar wallet first. From there, the farmer can hold USDC, send it to another wallet, or — once the T2 SEP-24 integration is live — withdraw as NGN cash via MoneyGram. This model supports both banked and unbanked users.
 
 **Compliance as a first-class concern.**
 KYC/AML checks, provider reference tracking, webhook audit trails, and on-chain transaction records are built into every payment and payout flow — not added as an afterthought.
@@ -179,16 +179,17 @@ FARMER STELLAR WALLET
 │
 │  9. Farmer receives SMS notification
 │     Opens Riwe app → initiates cash withdrawal
+│     (The following steps describe the designed T2 flow)
 │
 ▼
-SEP-10 AUTHENTICATION
+SEP-10 AUTHENTICATION  (T2 deliverable)
 │
 │  10. Farmer's Stellar keypair authenticates with
 │      MoneyGram's SEP-10 challenge/response flow
 │      Backend verifies JWT token
 │
 ▼
-SEP-24 INTERACTIVE WITHDRAWAL (MoneyGram anchor)
+SEP-24 INTERACTIVE WITHDRAWAL (MoneyGram anchor)  (T2 deliverable)
 │
 │  11. MoneyGram SEP-24 anchor initiates withdrawal
 │      USDC converted to NGN at live exchange rate
@@ -204,6 +205,7 @@ MONEYGRAM AGENT POINT
 ▼
 OUTCOME: Farmer paid. Insurer records updated.
          Full audit trail on Stellar.
+         MoneyGram SEP-24 flow validated end-to-end in T2 D3.
 ```
 
 ---
@@ -269,20 +271,22 @@ Farmers pay premiums in NGN via Paystack, which supports MTN Mobile Money and ma
 Farmer → MTN Mobile Money → Paystack → NGN/USDC conversion → insurance-payment pool
 ```
 
-#### Claim Disbursement (USDC → MoneyGram → NGN cash)
+#### Claim Disbursement — Designed Flow (USDC → MoneyGram → NGN cash)
+
+The `MoneyGramRampsService` class defines the SEP-24 withdrawal interface. The live integration with MoneyGram's anchor and end-to-end validation is the **T2 Deliverable 3**.
 
 ```php
 class MoneyGramRampsService
 {
-    public function getInfo(): array                          // SEP-24 anchor info
-    public function initiateDeposit(User $user, ...): array  // SEP-24 deposit flow
+    public function getInfo(): array                           // SEP-24 anchor info
+    public function initiateDeposit(User $user, ...): array   // SEP-24 deposit flow
     public function initiateWithdrawal(User $user, ...): array // SEP-24 withdrawal flow
     public function getTransactionStatus(string $txId): array
     public function handleWebhook(array $payload): bool
 }
 ```
 
-MoneyGram operates as a SEP-24 anchor on Stellar. The `MoneyGramRampsService` wraps the full interactive withdrawal flow — SEP-10 authentication, USDC debit, NGN disbursement — and reconciles status via webhook.
+MoneyGram operates as a SEP-24 anchor on Stellar. Once live, the `MoneyGramRampsService` will wrap the full interactive withdrawal flow — SEP-10 authentication, USDC debit, NGN disbursement — and reconcile status via webhook.
 
 ### 3. Wallet Infrastructure
 
@@ -324,15 +328,15 @@ WalletPlusService provides device-bound authentication and transaction signing f
 
 | SEP | Purpose in Riwe | Status |
 |---|---|---|
-| SEP-10 | Stellar wallet authentication for farmers and partners | ✅ Integrated |
-| SEP-24 | Interactive USDC/NGN withdrawal via MoneyGram anchor | ✅ Integrated |
-| SEP-6 | Programmatic anchor flows for B2B partners (insurers, MFBs) | ✅ Integrated |
+| SEP-10 | Stellar wallet authentication for farmers and partners | 🔲 T2 deliverable |
+| SEP-24 | Interactive USDC/NGN withdrawal via MoneyGram anchor | 🔲 T2 deliverable |
+| SEP-6 | Programmatic anchor flows for B2B partners (insurers, MFBs) | 🔲 T2 deliverable |
 | SEP-1 | `stellar.toml` for protocol discovery on Mainnet | T3 Deliverable |
 | SEP-30 | Account recovery for partner-managed customer wallets | T3 Deliverable |
 
-### SEP-10 — Authentication Flow
+### SEP-10 — Designed Authentication Flow
 
-Every insurance operation that touches a Stellar wallet — premium payment, claim submission, payout withdrawal — is gated behind SEP-10 wallet authentication. The farmer or partner signs a server-generated challenge with their Stellar keypair. The backend verifies the resulting JWT before authorising any contract invocation.
+Once implemented in T2, every insurance operation touching a Stellar wallet will be gated behind SEP-10 wallet authentication. The farmer or partner signs a server-generated challenge with their Stellar keypair. The backend verifies the resulting JWT before authorising any contract invocation.
 
 ```
 Client                Laravel Backend           Stellar Network
@@ -345,9 +349,9 @@ Client                Laravel Backend           Stellar Network
   │←── auth token ──────────│                         │
 ```
 
-### SEP-24 — MoneyGram Withdrawal Flow
+### SEP-24 — Designed MoneyGram Withdrawal Flow
 
-This is the last-mile disbursement mechanism that makes Riwe work for unbanked farmers.
+This is the last-mile disbursement mechanism that makes Riwe work for unbanked farmers. The UX/UI designs for this flow are **T1 Deliverable 3**. The live integration is **T2 Deliverable 3**.
 
 ```
 Farmer Stellar Wallet ($120 USDC)
@@ -529,9 +533,11 @@ Stellar is the primary and non-negotiable settlement network for all insurance p
 ```
 insurance-policy:  CCRXGROY4THHIB7QRGMJHBXXN7TPMVEYGBBEFVKGWQXOYH4RHJDB3SHR
 insurance-claim:   CCFYJDOFQAQT5DVB2UNU4SWOXMVFLLVWNG47J6G5ZPQGPDMRWSXO75WQ
+insurance-payment: TBD — T2 deliverable
+parametric-oracle: TBD — T2 deliverable
 ```
 
-Both contracts are active and verifiable at [stellar.expert/explorer/testnet](https://stellar.expert/explorer/testnet).
+The policy and claims contracts are active and verifiable at [stellar.expert/explorer/testnet](https://stellar.expert/explorer/testnet).
 
 ---
 
@@ -636,12 +642,12 @@ This B2B console is an SCF T2 deliverable and is built on the same API infrastru
 |---|---|---|
 | `insurance-policy` Soroban contract | ✅ Live on Testnet | `CCRXGROY...` |
 | `insurance-claim` Soroban contract | ✅ Live on Testnet | `CCFYJDOF...` |
-| `insurance-payment` contract | ✅ Source complete | `contracts/insurance-payment/` |
-| `parametric-oracle` contract | ✅ Source complete | `contracts/parametric-oracle/` |
+| `insurance-payment` contract | 🔲 Source complete — T2 deployment | — |
+| `parametric-oracle` contract | 🔲 Source complete — T2 deployment | — |
 | Laravel Stellar service layer | ✅ Integrated | `StellarSmartContractService` |
-| SEP-10 wallet authentication | ✅ Integrated | `StellarWalletService` |
-| MoneyGram SEP-24 service | ✅ TBD SCF42 | `MoneyGramRampsService` |
-| Paystack NGN premium collection | ✅ Live | 24,000+ users, $430K payouts |
+| SEP-10 wallet authentication | 🔲 T2 deliverable | Backend extension |
+| MoneyGram SEP-24 service | 🔲 T2 deliverable | `MoneyGramRampsService` (class exists) |
+| Paystack NGN premium collection | ✅ Live | with existing payouts |
 | Sentinel Hub data retrieval | ✅ Operational | Off-chain pipeline active |
 | Off-chain parametric model | ✅ Live | 16,000+ active policies |
 
@@ -664,7 +670,7 @@ This B2B console is an SCF T2 deliverable and is built on the same API infrastru
 
 ### The gap this submission closes
 
-Riwe's off-chain parametric insurance model has been live since 2022 with 24,000+ users and $10M+ in protected assets. The Soroban contract suite exists and is partially deployed.
+Riwe's off-chain parametric insurance model has been live since 2022 with 24,000+ users and $10M+ in protected assets. The Soroban contract suite exists and is partially deployed. The `MoneyGramRampsService` class and SEP-24 flow architecture exist in the codebase — the live anchor integration and end-to-end validation are T2 deliverables.
 
 The missing piece is the Acurast-powered oracle pipeline connecting live satellite data to the on-chain `parametric-oracle` contract. Without this, the claim contract cannot evaluate triggers automatically — the on-chain settlement flow depends on a manual data submission. This SCF award funds the activation of that pipeline, completing the fully automated end-to-end protocol.
 
