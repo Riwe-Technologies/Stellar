@@ -1,7 +1,7 @@
 # MoneyGram Integration
 ## Riwe Technologies — Last-Mile USDC/NGN Settlement Rail on Stellar
 
-**Related documentation:** [Soroban Smart Contracts Overview ←](./Soroban-Smart-Contracts-Overview.md) · [System Architecture ←](./System-Architecture.md) · [DeFi Wallet and MoneyGram Claims Payout](./DeFi-and-Moneygram-Claims-Payout.md) · [Fiat Currencies](./Fiat-Currencies.md)
+**Related documentation:** [Soroban Smart Contracts Overview ←](./Soroban-Smart-Contracts-Overview.md) · [System Architecture ←](./System-Architecture.md) · [DeFi Wallet System](./DeFi-Wallet-System.md) · [Fiat Currencies](./Fiat-Currencies.md)
 
 ---
 
