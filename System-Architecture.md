@@ -640,8 +640,8 @@ This B2B console is an SCF T2 deliverable and is built on the same API infrastru
 | `parametric-oracle` contract | ✅ Source complete | `contracts/parametric-oracle/` |
 | Laravel Stellar service layer | ✅ Integrated | `StellarSmartContractService` |
 | SEP-10 wallet authentication | ✅ Integrated | `StellarWalletService` |
-| MoneyGram SEP-24 service | ✅ Integrated | `MoneyGramRampsService` |
-| Paystack NGN premium collection | ✅ Live | 24,000+ users, ₦430K revenue |
+| MoneyGram SEP-24 service | ✅ TBD SCF42 | `MoneyGramRampsService` |
+| Paystack NGN premium collection | ✅ Live | 24,000+ users, $430K payouts |
 | Sentinel Hub data retrieval | ✅ Operational | Off-chain pipeline active |
 | Off-chain parametric model | ✅ Live | 16,000+ active policies |
 
@@ -664,10 +664,10 @@ This B2B console is an SCF T2 deliverable and is built on the same API infrastru
 
 ### The gap this submission closes
 
-Riwe's off-chain parametric insurance model has been live since 2022 with 24,000+ users and $10M+ in protected assets. The Soroban contract suite exists and is partially deployed. The MoneyGram and SEP-24 service layer is integrated.
+Riwe's off-chain parametric insurance model has been live since 2022 with 24,000+ users and $10M+ in protected assets. The Soroban contract suite exists and is partially deployed.
 
 The missing piece is the Acurast-powered oracle pipeline connecting live satellite data to the on-chain `parametric-oracle` contract. Without this, the claim contract cannot evaluate triggers automatically — the on-chain settlement flow depends on a manual data submission. This SCF award funds the activation of that pipeline, completing the fully automated end-to-end protocol.
 
 ---
 
-*Riwe Technologies Limited · RC 1899524 · riwe.io · hello@riwe.io*
+*Riwe Technologies Limited · riwe.io · partnerships@riwe.io*
