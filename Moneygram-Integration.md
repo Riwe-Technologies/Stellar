@@ -1,116 +1,139 @@
 # MoneyGram Integration
+## Riwe Technologies — Last-Mile USDC/NGN Settlement Rail on Stellar
 
-This document describes Riwe's current MoneyGram integration as a backend-managed USDC cash-ramp for Stellar wallets. It is grounded in the live application surfaces currently implemented in `config/services.php`, `routes/moneygram.php`, `app/Services/MoneyGramRampsService.php`, and `app/Http/Controllers/MoneyGramController.php`.
+**Related documentation:** [Soroban Smart Contracts Overview ←](./Soroban-Smart-Contracts-Overview.md) · [System Architecture ←](./System-Architecture.md) · [DeFi Wallet and MoneyGram Claims Payout](./DeFi-and-Moneygram-Claims-Payout.md) · [Fiat Currencies](./Fiat-Currencies.md)
 
-The document is intentionally conservative. It separates:
+---
 
-- current implemented behavior
-- current support and sandbox tooling
-- production hardening work that is still required
+## Table of Contents
 
-Related docs: [Technical Architecture.md](./Technical-Architecture.md) · [08-DeFi-Wallet-System.md](./DeFi-and-Moneygram-Claims-Payout.md) · [12-Fiat-Integration.md](./Fiat-Currencies.md)
+1. [Why MoneyGram on Stellar](#why-moneygram-on-stellar)
+2. [Implementation Status](#implementation-status)
+3. [Role in the Insurance Protocol](#role-in-the-insurance-protocol)
+4. [Architecture and Component Model](#architecture-and-component-model)
+5. [Protocol Posture](#protocol-posture)
+6. [Configuration Surface](#configuration-surface)
+7. [Route Surface](#route-surface)
+8. [Operational Flows](#operational-flows)
+9. [Wallet Prerequisites and Request Validation](#wallet-prerequisites-and-request-validation)
+10. [Asset, Network, and Corridor Scope](#asset-network-and-corridor-scope)
+11. [Transaction Records and Reconciliation](#transaction-records-and-reconciliation)
+12. [Status Lifecycle and Webhook Handling](#status-lifecycle-and-webhook-handling)
+13. [Sandbox and Non-Sandbox Behaviour](#sandbox-and-non-sandbox-behaviour)
+14. [Security and Compliance](#security-and-compliance)
+15. [Known Implementation Gaps](#known-implementation-gaps)
+16. [Production Hardening — SCF Tranche Mapping](#production-hardening--scf-tranche-mapping)
 
-## Contents
+---
 
-- [Current role in platform](#current-role-in-platform)
-- [Current implementation status](#current-implementation-status)
-- [Architecture and component model](#architecture-and-component-model)
-- [Protocol posture](#protocol-posture)
-- [Configuration surface](#configuration-surface)
-- [Route surface](#route-surface)
-- [Operational flows](#operational-flows)
-- [Wallet prerequisites and request validation](#wallet-prerequisites-and-request-validation)
-- [Asset, network, and corridor scope](#asset-network-and-corridor-scope)
-- [Transaction records and reconciliation](#transaction-records-and-reconciliation)
-- [Status lifecycle and webhook handling](#status-lifecycle-and-webhook-handling)
-- [Sandbox and non-sandbox behavior](#sandbox-and-non-sandbox-behavior)
-- [Security, compliance, and support operations](#security-compliance-and-support-operations)
-- [Current implementation boundaries](#current-implementation-boundaries)
-- [Production hardening roadmap](#production-hardening-roadmap)
-- [Conclusion](#conclusion)
+## Why MoneyGram on Stellar
 
-## Current role in platform
+Riwe's insurance model requires two things that traditional financial infrastructure cannot deliver together: instant on-chain claim settlement and last-mile NGN cash disbursement to farmers with no bank account.
 
-MoneyGram is a current application-layer provider integration for cash-in and cash-out using **USDC on Stellar**. In Riwe's architecture it is not a smart contract, not a standalone settlement ledger, and not the primary claims engine. It is attached to the wallet layer and used as a fiat or cash corridor around a Stellar wallet account.
+Stellar solves the settlement side — USDC transfers between Soroban contracts and farmer wallets are near-instant and permanently auditable. MoneyGram solves the last-mile side — as a SEP-24 anchor on Stellar, MoneyGram converts USDC to NGN and disburses cash through its agent network across Nigeria, Kenya, and Ghana. A farmer in Benue State with no bank account can collect a verified climate insurance payout in cash within 48 hours of a satellite trigger being confirmed on-chain.
 
-From a business-flow perspective, MoneyGram is intended to support both **premium payments** and **claim settlement**. In the current codebase, those insurance-specific uses are expressed through generic wallet-linked deposit and withdrawal flows rather than dedicated premium- or claim-specific MoneyGram endpoints.
+This combination is not achievable with any other stack. Traditional payment providers do not offer programmatic USDC settlement. MoneyGram's Stellar-native Access product is the only rail that connects on-chain USDC settlement directly to last-mile cash disbursement in the markets where Riwe operates.
 
-Its current role is:
+The MoneyGram last-mile settlement rail is explicitly listed as **Product 4** in the SCF #42 submission. The service layer architecture, routes, and sandbox tooling described in this document form the pre-production foundation that T2 funds will activate and validate end-to-end.
 
-- enabling interactive USDC deposit initiation into a user's Stellar account, including premium-funding use cases
-- enabling interactive USDC withdrawal initiation out of a user's Stellar account, including claim-settlement and cash-out use cases
-- supporting insurance payment flows where premium collection or claim disbursement needs a provider-mediated fiat or cash corridor around the Stellar wallet
-- storing local MoneyGram-linked transaction records in `fiat_onramps`
-- receiving provider status callbacks and normalizing them into Riwe transaction states
+---
 
-This preserves the broader wallet-centric model used elsewhere in the application docs: MoneyGram interacts around the Stellar wallet, while premium and claim business logic remain coordinated by backend and contract-orchestration layers.
+## Implementation Status
 
-## Current implementation status
+The MoneyGram integration is **pre-production**. The service layer, routes, controller, configuration, and local persistence scaffolding have been designed and partially built, but the integration is not yet live against the MoneyGram anchor. All items below are either in progress or pending the relevant SCF tranche.
 
-| Surface | Current status | Notes |
-| --- | --- | --- |
-| Backend service integration | Implemented | `MoneyGramRampsService` manages provider-facing calls and sandbox behavior |
-| Controller and route surface | Implemented | Public, authenticated web, and Sanctum API routes are present |
-| Interactive deposit and withdrawal initiation | Implemented | Current code uses MoneyGram interactive transaction endpoints or sandbox substitutes |
-| Wallet prerequisite checks | Implemented | Deposit and withdrawal require a `stellarWallet` or `walletPlus` record |
-| Local transaction persistence | Implemented | MoneyGram flows create `FiatOnramp` records with provider `moneygram` |
-| Status normalization | Implemented | Provider states are mapped into local `pending`, `processing`, `completed`, and `failed` outcomes |
-| Webhook and status reconciliation | Implemented with caveats | Current code contains an identifier mismatch described later in this document |
-| Sandbox simulation tooling | Implemented | Sandbox page, test-suite helpers, and report-generation routes exist |
-| Production approval | Not documented as current | The presence of approval tooling does not by itself mean production approval is complete |
-| Fully hosted local SEP auth server | Not documented as current | The current repo exposes MoneyGram route groups, not a full local SEP-10 server implementation |
+| Component | Status | SCF Tranche |
+|---|---|---|
+| `MoneyGramRampsService` — service class scaffolding | 🔲 Sandbox only — not production-active | T2 Deliverable 3 |
+| Controller and route surface | 🔲 Scaffolded — not production-active | T2 Deliverable 1 |
+| Interactive deposit initiation | 🔲 Sandbox simulation only | T2 Deliverable 3 |
+| Interactive withdrawal initiation | 🔲 Sandbox simulation only | T2 Deliverable 3 |
+| Wallet prerequisite checks | 🔲 Scaffolded | T2 Deliverable 1 |
+| Local transaction persistence (`fiat_onramps`) | 🔲 Scaffolded | T2 Deliverable 3 |
+| Status normalisation | 🔲 Scaffolded | T2 Deliverable 3 |
+| Webhook plumbing | 🔲 Scaffolded — identifier gap noted | T2 Deliverable 3 |
+| Sandbox simulation tooling | 🔲 For development use only | — |
+| SEP-10 backend authentication | 🔲 Not yet implemented | T2 Deliverable 1 |
+| SEP-24 live anchor integration | 🔲 Not yet activated | T2 Deliverable 3 |
+| Webhook signature verification | 🔲 Not yet implemented | T2 Deliverable 3 |
+| Transaction identifier normalisation | 🔲 Known gap — to be resolved | T2 Deliverable 3 |
+| Production credentialling and approval | 🔲 Not complete | T2 Deliverable 3 |
+| End-to-end validation (MoneyGram test anchor) | 🔲 Not yet run | T2 Deliverable 3 |
+| UX/UI designs for SEP-24 withdrawal flows | 🔲 Not yet designed | T1 Deliverable 3 |
 
-## Architecture and component model
+---
 
-The MoneyGram integration is distributed across configuration, controller, service, route, and persistence layers.
+## Role in the Insurance Protocol
 
-| Component | Current responsibility |
-| --- | --- |
-| `config/services.php` | Environment, credentials, network selection, USDC issuers, limits, currencies, and KYC thresholds |
-| `routes/moneygram.php` | Public info and webhook routes, authenticated wallet-facing routes, and Sanctum API routes |
-| `MoneyGramController` | Validation, authentication boundaries, wallet prerequisite checks, JSON or HTML responses, and support tooling |
-| `MoneyGramRampsService` | Provider info lookup, deposit initiation, withdrawal initiation, status lookup, sandbox behavior, and webhook-driven updates |
-| `FiatOnramp` | Local provider transaction record, user linkage, currency amounts, provider references, and metadata |
+MoneyGram is planned as an application-layer provider integration for USDC cash-in and cash-out using Stellar wallets. It is not a smart contract, not a standalone settlement ledger, and not the primary claims engine. It is designed to operate around the Stellar wallet layer as a fiat corridor for two specific insurance flows:
+
+**1. Premium collection (deposit → USDC pool)**
+
+A farmer pays NGN via a MoneyGram agent or the app. The value is converted to USDC and credited to the farmer's Stellar wallet, which is then used to fund the `insurance-payment` pool via the Soroban `process_premium()` call. This is the designed flow — not yet live.
+
+**2. Claim disbursement (USDC → NGN cash)**
+
+Once the `insurance-payment` Soroban contract releases USDC to a farmer's Stellar wallet following a confirmed parametric trigger, the MoneyGram withdrawal flow is designed to convert that USDC to NGN and disburse cash at a local agent point within 48 hours.
+
+The important boundary is that the codebase currently scaffolds generic `deposit` and `withdrawal` operations. Insurance-specific orchestration — routing claim payouts from the Soroban payment contract through to MoneyGram withdrawal — is a T2 integration deliverable.
+
+---
+
+## Architecture and Component Model
+
+The planned MoneyGram integration is distributed across configuration, controller, service, route, and persistence layers.
 
 ```mermaid
-flowchart TD;
-    U["User / Client"];
-    C["MoneyGramController"];
-    S["MoneyGramRampsService"];
-    D[("fiat_onramps")];
-    W["User Stellar Wallet"];
-    MG["MoneyGram Provider"];
+flowchart TD
+    U["Farmer / User"]
+    C["MoneyGramController"]
+    S["MoneyGramRampsService"]
+    D[("fiat_onramps table")]
+    W["Farmer Stellar Wallet"]
+    MG["MoneyGram Anchor (SEP-24)"]
 
-    U --> C;
-    C --> S;
-    S --> MG;
-    S --> D;
-    MG -->|"status callback"| C;
-    C --> D;
-    MG -->|"interactive cash-in / cash-out flow"| U;
-    MG -->|"wallet settlement context"| W;
+    U --> C
+    C --> S
+    S --> MG
+    S --> D
+    MG -->|"status callback"| C
+    C --> D
+    MG -->|"interactive cash-in / cash-out"| U
+    MG -->|"USDC settlement context"| W
 ```
 
-## Protocol posture
+| Component | Planned responsibility |
+|---|---|
+| `config/services.php` | Environment, credentials, network selection, limits, currencies, KYC thresholds |
+| `routes/moneygram.php` | Public info and webhook routes, authenticated wallet-facing routes, Sanctum API routes |
+| `MoneyGramController` | Validation, authentication boundaries, wallet prerequisite checks, JSON and HTML responses, support tooling |
+| `MoneyGramRampsService` | Provider info lookup, deposit initiation, withdrawal initiation, status lookup, sandbox behaviour, webhook updates |
+| `FiatOnramp` | Local provider transaction record, user linkage, currency amounts, provider references, metadata |
 
-The current integration should be described as a **SEP-24-style interactive ramp integration** rather than a full standalone locally hosted SEP implementation.
+---
 
-What the current code does:
+## Protocol Posture
 
-- calls a MoneyGram `info` endpoint in non-sandbox mode
-- posts to `transactions/deposit/interactive` for deposits
-- posts to `transactions/withdraw/interactive` for withdrawals
-- passes an `on_change_callback` webhook URL back to Riwe
+The planned integration is designed as a **SEP-24-style interactive ramp integration** using MoneyGram as the anchor. It is not a full standalone locally hosted SEP server.
 
-What should not be overstated:
+What the designed flow will do:
 
-- the current repo does not expose a complete local `/api/sep/interactive/*` surface in `routes/moneygram.php`
-- the current reviewed code does not show a complete locally hosted SEP-10 auth workflow for Riwe itself
-- the integration therefore should be documented as provider-driven interactive ramp handling, not as a complete independently operated SEP server stack
+- call a MoneyGram `info` endpoint in non-sandbox mode
+- post to `transactions/deposit/interactive` for deposits
+- post to `transactions/withdraw/interactive` for withdrawals
+- pass an `on_change_callback` webhook URL back to Riwe for status reconciliation
 
-## Configuration surface
+What is not yet built and should not be overstated:
 
-`config/services.php` defines the current MoneyGram integration surface through the following keys:
+- a complete locally hosted SEP-10 auth workflow — this is a T2 Deliverable 1 item
+- end-to-end live flows against the MoneyGram anchor — this is T2 Deliverable 3
+- a production-approved corridor — this requires formal provider approval confirmation in T2
+
+---
+
+## Configuration Surface
+
+`config/services.php` defines the planned MoneyGram integration configuration keys:
 
 - `services.moneygram.environment`
 - `services.moneygram.base_url`
@@ -125,51 +148,49 @@ What should not be overstated:
 - `services.moneygram.supported_currencies`
 - `services.moneygram.kyc.*`
 
-### Current asset and network configuration
+### Asset and network configuration
 
-| Network | Asset | Current configured issuer |
-| --- | --- | --- |
-| `testnet` | USDC | `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5` |
-| `mainnet` | USDC | `GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN` |
+The service is designed to operate with **USDC on Stellar** as the settlement asset. USDC issuer addresses will be configured from official Stellar and MoneyGram documentation at the time of T2 production activation. No issuer addresses are hardcoded here — they are environment-configured and subject to confirmation against the live MoneyGram anchor at T2 time.
 
-The service derives the active issuer from `services.moneygram.stellar_network`, which defaults through `STELLAR_NETWORK` and currently operates in a sandbox-first posture.
-
-### Current transaction limits
+### Transaction limits (planned)
 
 | Flow | Minimum | Maximum |
-| --- | --- | --- |
+|---|---|---|
 | Deposit / on-ramp | 5 USDC | 950 USDC |
-| Withdrawal / off-ramp | 5 USDC | 2500 USDC |
+| Withdrawal / off-ramp | 5 USDC | 2,500 USDC |
 
-### KYC threshold configuration
+These limits are scaffolded in configuration. Final limits will be confirmed against MoneyGram's production corridor requirements in T2.
 
-The current service configuration also includes:
+### KYC threshold configuration (planned)
 
-- `required_for_amounts_above = 100`
-- `enhanced_kyc_threshold = 1000`
+Configuration includes:
+- `required_for_amounts_above` — threshold above which KYC verification is required
+- `enhanced_kyc_threshold` — threshold for enhanced due diligence
 
-These values are useful operational thresholds, but the presence of configuration alone should not be treated as proof that the entire UX, controller, provider, and compliance workflow is already production-complete end to end.
+These values are configuration scaffolding. Full KYC and compliance enforcement across the controller, provider, and support workflows is a T2 hardening item.
 
-## Route surface
+---
 
-`routes/moneygram.php` currently exposes three main route groups.
+## Route Surface
+
+`routes/moneygram.php` defines the planned route surface across three groups.
 
 ### Public routes under `/moneygram/*`
 
-| Route | Current purpose |
-| --- | --- |
+| Route | Purpose |
+|---|---|
 | `GET /moneygram/info` | Service information |
-| `POST /moneygram/webhook` | Provider callback receiver |
+| `POST /moneygram/webhook` | Provider status callback receiver |
 | `GET /moneygram/options` | Supported currencies, limits, asset, and network |
-| `GET /moneygram/sandbox/{token}` | Sandbox simulation page |
-| `GET /moneygram/test-suite` | Test-suite UI |
-| `GET /moneygram/download-report/{filename}` | Report download helper |
+| `GET /moneygram/sandbox/{token}` | Sandbox simulation page (development only) |
+| `GET /moneygram/test-suite` | Test-suite UI (development only) |
+| `GET /moneygram/download-report/{filename}` | Report download helper (development only) |
 | `GET /moneygram/transaction/{id}` | Transaction detail page |
 
 ### Authenticated web routes under `/moneygram/*`
 
-| Route | Current purpose |
-| --- | --- |
+| Route | Purpose |
+|---|---|
 | `GET /moneygram` | MoneyGram UI entry point |
 | `POST /moneygram/deposit` | Deposit initiation |
 | `POST /moneygram/withdrawal` | Withdrawal initiation |
@@ -178,256 +199,224 @@ These values are useful operational thresholds, but the presence of configuratio
 
 ### Sanctum API routes under `/api/moneygram/*`
 
-| Route | Current purpose |
-| --- | --- |
-| `GET /api/moneygram/info` | API-facing info route |
-| `GET /api/moneygram/options` | API-facing options route |
+| Route | Purpose |
+|---|---|
+| `GET /api/moneygram/info` | API-facing info |
+| `GET /api/moneygram/options` | API-facing options |
 | `POST /api/moneygram/deposit` | API deposit initiation |
 | `POST /api/moneygram/withdrawal` | API withdrawal initiation |
 | `GET /api/moneygram/transactions` | API transaction list |
 | `GET /api/moneygram/transactions/{id}` | API transaction detail |
-| `POST /api/moneygram/test-case` | Test case execution helper |
-| `POST /api/moneygram/generate-report` | Test report generation helper |
+| `POST /api/moneygram/test-case` | Test case execution (development only) |
+| `POST /api/moneygram/generate-report` | Test report generation (development only) |
 
-## Operational flows
+All routes above are scaffolded. They operate in sandbox mode until T2 production activation.
 
-### Service information and options
+---
 
-`MoneyGramController::info()` calls `MoneyGramRampsService::getInfo()` and returns JSON for API-style requests or an HTML view for browser requests.
+## Operational Flows
 
-`MoneyGramController::getSupportedOptions()` returns:
+### Premium payment (deposit — designed flow)
 
-- `supported_currencies`
-- `limits`
-- `asset_code`
-- `asset_issuer`
-- `network`
-
-This makes the options endpoint the most accurate live summary of the currently configured MoneyGram corridor surface.
-
-### Insurance-specific business usage
-
-Within Riwe's insurance flows, MoneyGram should be understood as a provider rail for two main business cases:
-
-1. **Premium payments**
-   - the current implementation path is a MoneyGram deposit flow that settles value into the user's Stellar wallet or account context
-   - that wallet-linked value can then support premium-related application or contract flows
-
-2. **Claim settlement**
-   - the current implementation path is a MoneyGram withdrawal flow tied to the user's Stellar wallet or account context
-   - this supports claim-disbursement and cash-settlement use cases once payout value is available for withdrawal
-
-The important implementation boundary is that the repository currently exposes generic `deposit` and `withdrawal` operations. It does not yet expose dedicated MoneyGram routes named specifically for premium collection or claim payout settlement.
-
-### Deposit flow
-
-For premium-payment and general funding use cases, the current deposit path is:
-
-1. the user calls `POST /moneygram/deposit` or `POST /api/moneygram/deposit`
-2. the controller validates amount and currency
-3. the controller confirms the user has a `stellarWallet` or `walletPlus`
-4. `MoneyGramRampsService::initiateDeposit(...)` builds a provider payload containing:
+1. Farmer calls `POST /moneygram/deposit` or `POST /api/moneygram/deposit`
+2. Controller validates amount and currency
+3. Controller confirms the user has a `stellarWallet` or `walletPlus` record
+4. `MoneyGramRampsService::initiateDeposit()` builds the provider payload:
    - `asset_code = USDC`
-   - the active `asset_issuer`
+   - `asset_issuer` (configured at T2 activation)
    - `amount`
    - `source_asset`
-   - `account = $user->stellar_account_id`
-   - `memo_type`
-   - `memo`
+   - `account = farmer Stellar account ID`
+   - `memo_type`, `memo`
    - `on_change_callback = route('moneygram.webhook')`
-5. sandbox mode returns a Riwe-hosted sandbox URL and mock instructions; non-sandbox mode posts to MoneyGram's interactive deposit endpoint
-6. a local `FiatOnramp` record is created with provider `moneygram` and type `deposit`
-7. the response returns a local transaction ID, provider ID when present, an interactive URL, and instructions
+5. In sandbox mode: returns a Riwe-hosted sandbox URL and mock instructions
+6. In production (T2): posts to MoneyGram's interactive deposit endpoint and returns an anchor URL
+7. A local `FiatOnramp` record is created with provider `moneygram` and type `deposit`
 
-### Withdrawal flow
+### Claim disbursement (withdrawal — designed flow)
 
-For claim-settlement and general cash-out use cases, the current withdrawal path is similar, with `MoneyGramRampsService::initiateWithdrawal(...)` using `dest_asset` for the requested cash-out currency.
+1. Claim payout confirmed by `insurance-payment` Soroban contract — USDC in farmer wallet
+2. Farmer calls `POST /moneygram/withdrawal` or `POST /api/moneygram/withdrawal`
+3. Controller validates amount and currency; blocks demo-user withdrawals
+4. Controller confirms the user has a `stellarWallet` or `walletPlus` record
+5. `MoneyGramRampsService::initiateWithdrawal()` builds the provider payload with `dest_asset` for requested cash-out currency
+6. In sandbox mode: returns mock MoneyGram ID and sandbox URL
+7. In production (T2): posts to MoneyGram's interactive withdrawal endpoint; anchor handles USDC debit and NGN disbursement
+8. A local `FiatOnramp` record is created with provider `moneygram` and type `withdrawal`
 
-The flow is:
+---
 
-1. the user calls `POST /moneygram/withdrawal` or `POST /api/moneygram/withdrawal`
-2. the controller validates amount and currency
-3. the controller blocks demo-user withdrawals
-4. the controller confirms the user has a `stellarWallet` or `walletPlus`
-5. the service builds the provider payload and returns either sandbox data or a non-sandbox interactive session
-6. a local `FiatOnramp` record is created with provider `moneygram` and type `withdrawal`
+## Wallet Prerequisites and Request Validation
 
-## Wallet prerequisites and request validation
+The planned controller enforces the following before invoking the MoneyGram service:
 
-The current controller enforces practical wallet and request constraints before invoking the MoneyGram service.
-
-| Check | Current behavior |
-| --- | --- |
+| Check | Planned behaviour |
+|---|---|
 | Wallet presence | User must have either `stellarWallet` or `walletPlus` |
-| Deposit amount | `min:5`, `max:950` |
-| Withdrawal amount | `min:5`, `max:2500` |
-| Deposit currencies | `USD, EUR, GBP, CAD, AUD, NGN, KES, GHS, ZAR` |
-| Withdrawal currencies | `USD, EUR, GBP, CAD, AUD, NGN, KES, GHS, ZAR` |
-| Demo account restriction | Withdrawal is blocked for `isDemoUser()` |
+| Deposit amount | `min: 5 USDC`, `max: 950 USDC` |
+| Withdrawal amount | `min: 5 USDC`, `max: 2,500 USDC` |
+| Demo account restriction | Withdrawal blocked for demo users |
 
 If a user has neither a Stellar wallet nor a Wallet Plus record, the controller returns a wallet-required error and does not attempt a provider call.
 
-## Asset, network, and corridor scope
+---
+
+## Asset, Network, and Corridor Scope
 
 ### Settlement asset
 
-The MoneyGram integration is currently modeled around **USDC on Stellar**. The user's `stellar_account_id` is the account identifier passed into deposit and withdrawal initiation payloads.
+The MoneyGram integration is designed around **USDC on Stellar**. The farmer's `stellar_account_id` is the account identifier passed into deposit and withdrawal payloads.
 
-### Configured currencies versus currently enforced request surface
+### Supported currencies (planned)
 
-The current configuration includes the following broader list of supported currencies:
+The controller is scaffolded to accept the following currencies for deposit and withdrawal requests:
 
-- `USD`, `EUR`, `GBP`, `CAD`, `AUD`
-- `NGN`, `KES`, `GHS`, `ZAR`
-- `MXN`, `BRL`, `INR`, `PHP`, `THB`, `VND`, `IDR`, `MYR`, `SGD`
+`USD, EUR, GBP, CAD, AUD, NGN, KES, GHS, ZAR`
 
-However, the current controller validation accepts a narrower live request surface:
+The full configuration also references additional currencies for future expansion. For documentation purposes, the controller-enforced set above is the effective planned interface for T2 launch.
 
-- `USD`, `EUR`, `GBP`, `CAD`, `AUD`, `NGN`, `KES`, `GHS`, `ZAR`
+### Corridor and timing
 
-For operational and documentation purposes, the narrower controller-enforced set should be treated as the effective request interface until validation, UX, and provider corridor coverage are aligned.
+Actual corridor availability, processing times, and agent network coverage depend on MoneyGram production approval, provider conditions, KYC state, and agent availability. No fixed processing SLA should be stated as a platform guarantee — the 48-hour disbursement target is the designed goal, contingent on end-to-end production validation in T2.
 
-### Corridor and timing guidance
+---
 
-Actual corridor availability can vary by environment, compliance state, provider requirements, and agent availability. The current code does not establish a fixed end-to-end processing SLA, so the documentation should avoid promising exact processing times as if they were guaranteed platform behavior.
+## Transaction Records and Reconciliation
 
-## Transaction records and reconciliation
+Every initiated MoneyGram flow is designed to create a local `FiatOnramp` record.
 
-Every initiated MoneyGram flow creates a local `FiatOnramp` record. Important fields in the current model include:
-
-| Field | Current role |
-| --- | --- |
-| `provider` | Provider name, currently `moneygram` |
-| `provider_reference` | Provider-facing reference stored at creation time |
+| Field | Purpose |
+|---|---|
+| `provider` | Provider name — `moneygram` |
+| `provider_reference` | Provider-facing reference stored at creation |
 | `provider_transaction_id` | Provider transaction ID when available |
 | `type` | `deposit` or `withdrawal` |
 | `status` | Local lifecycle state |
 | `fiat_amount` / `fiat_currency` | User-facing fiat request details |
-| `crypto_amount` / `crypto_currency` | Stellar-side asset amount, currently modeled as USDC |
-| `metadata` | Stored provider response, Stellar account, memo, and webhook updates |
-| `provider_webhook_data` | Model-supported provider webhook storage field |
+| `crypto_amount` / `crypto_currency` | Stellar-side USDC amount |
+| `metadata` | Provider response, Stellar account, memo, webhook updates |
+| `provider_webhook_data` | Provider webhook storage |
 
-### Current reconciliation nuance
+### Known identifier gap
 
-The current initiation logic writes `provider_reference` and `provider_transaction_id`.
+The current scaffolding has a reconciliation inconsistency: creation logic writes `provider_reference` and `provider_transaction_id`, but the webhook and transaction-refresh logic references `external_transaction_id` — which has no matching definition in the current codebase. This means the webhook and status-update plumbing is scaffolded but not yet producing a fully normalised reconciliation model. Resolving this is a **T2 Deliverable 3** task.
 
-By contrast, the current webhook and transaction-refresh logic looks up `external_transaction_id` when attempting to reconcile status updates. No matching `external_transaction_id` definition was found in the current application surfaces reviewed for this document.
+---
 
-That means the current integration should be described as having **webhook and status-update plumbing present**, but not yet as a fully normalized production-grade reconciliation model. Before production hardening, identifier usage should be standardized across create, lookup, webhook, and refresh paths.
+## Status Lifecycle and Webhook Handling
 
-## Status lifecycle and webhook handling
-
-`MoneyGramRampsService::mapMoneyGramStatus(...)` currently maps provider statuses into local Riwe transaction states.
+`MoneyGramRampsService::mapMoneyGramStatus()` is designed to map provider states into local Riwe transaction states.
 
 | Provider status | Local status | Operational meaning |
-| --- | --- | --- |
-| `pending_user_transfer_start` | `pending` | User still needs to begin or complete the provider-side step |
-| `pending_anchor` | `processing` | Provider-side processing is underway |
-| `pending_stellar` | `processing` | Settlement-side processing is underway |
-| `pending_external` | `processing` | External processing is underway |
-| `pending_trust` | `pending` | Waiting on trustline or asset-side preconditions |
+|---|---|---|
+| `pending_user_transfer_start` | `pending` | User still needs to complete provider-side action |
+| `pending_anchor` | `processing` | Provider-side processing underway |
+| `pending_stellar` | `processing` | Stellar settlement underway |
+| `pending_external` | `processing` | External processing underway |
+| `pending_trust` | `pending` | Waiting on trustline or asset preconditions |
 | `pending_user` | `pending` | Waiting on user action |
 | `completed` | `completed` | Provider flow reached terminal success |
 | `error` | `failed` | Provider flow failed |
 | `incomplete` | `failed` | Provider flow did not complete |
 
-The webhook entry point is `POST /moneygram/webhook`. In the current reviewed implementation:
+The webhook entry point is `POST /moneygram/webhook`. The designed flow:
+- Controller forwards the payload to `MoneyGramRampsService::handleWebhook()`
+- Service checks for `id` and `status`
+- If a matching record is found, local status is updated and payload appended to metadata
 
-- the controller forwards the payload to `MoneyGramRampsService::handleWebhook(...)`
-- the service checks for `id` and `status`
-- if a matching record is found, the local status is updated and the payload is appended into local metadata
+**Note:** Webhook signature verification using the configured `webhook_secret` is not yet implemented. Adding explicit signature validation is a **T2 Deliverable 3** hardening task.
 
-## Sandbox and non-sandbox behavior
+---
 
-Sandbox mode is a first-class part of the current implementation.
+## Sandbox and Non-Sandbox Behaviour
 
-### Sandbox behavior
+Sandbox mode is a first-class part of the planned implementation and the current state of the codebase.
+
+### Sandbox behaviour (current state)
 
 When `services.moneygram.environment === sandbox`:
-
 - `getInfo()` returns a mock service-info payload
-- deposit initiation returns a mock MoneyGram ID and a Riwe sandbox URL
-- withdrawal initiation returns a mock MoneyGram ID and a Riwe sandbox URL
-- instructions are generated locally for testing and support flows
+- Deposit initiation returns a mock ID and a Riwe-hosted sandbox URL
+- Withdrawal initiation returns a mock ID and a Riwe-hosted sandbox URL
+- Instructions are generated locally for development and testing
 
-### Non-sandbox behavior
+### Non-sandbox behaviour (T2 target)
 
-When the environment is not sandbox:
-
+When the environment is set to production:
 - `getInfo()` performs an HTTP `GET` against the configured MoneyGram base URL
-- deposit initiation performs an HTTP `POST` to `transactions/deposit/interactive`
-- withdrawal initiation performs an HTTP `POST` to `transactions/withdraw/interactive`
+- Deposit initiation posts to `transactions/deposit/interactive`
+- Withdrawal initiation posts to `transactions/withdraw/interactive`
 
-This split is important: successful sandbox flows demonstrate application integration and UX behavior, but they should not be presented as proof of production approval or end-to-end production readiness.
+Successful sandbox flows demonstrate application structure and UX behaviour. They do not constitute evidence of production approval or live anchor readiness — that is the T2 Deliverable 3 milestone.
 
-## Security, compliance, and support operations
+---
 
-### Current security and access controls
+## Security and Compliance
 
-The current implementation includes:
+### Planned security controls
 
-- authenticated deposit, withdrawal, and transaction routes
-- Sanctum-protected API equivalents for frontend or mobile clients
-- controller-level input validation for amounts and currencies
-- wallet prerequisite checks before provider calls
-- configurable provider credentials and a configurable webhook secret
+| Control | Status |
+|---|---|
+| Authenticated deposit, withdrawal, and transaction routes | 🔲 Scaffolded |
+| Sanctum-protected API equivalents | 🔲 Scaffolded |
+| Controller-level input validation | 🔲 Scaffolded |
+| Wallet prerequisite checks before provider calls | 🔲 Scaffolded |
+| Configurable provider credentials and webhook secret | 🔲 Configured — not yet enforced in request path |
+| Webhook signature verification | 🔲 T2 Deliverable 3 |
+| SEP-10 wallet authentication | 🔲 T2 Deliverable 1 |
 
-### Current compliance posture
+### Compliance posture
 
-From an industry and operations perspective, the integration should be understood as a regulated provider corridor around a Stellar wallet. Practical controls include:
+The integration is designed around a regulated provider corridor. Planned controls include:
+- Wallet ownership and authenticated user access
+- Local provider-reference storage for traceability
+- Configurable KYC thresholds
+- Support and audit context in local transaction records
 
-- wallet ownership and authenticated user access
-- local provider-reference storage for traceability
-- configurable KYC thresholds in service configuration
-- the ability to keep support and audit context in local transaction records
+Full KYC and compliance enforcement across controller, provider, and support workflows is a T2 hardening item.
 
-### Support and approval tooling
+---
 
-The current route surface also includes:
+## Known Implementation Gaps
 
-- a sandbox simulation page
-- test-case execution helpers
-- test-report generation and download helpers
+The following gaps are documented accurately to support engineering and review:
 
-These are useful support and integration artifacts, but they should be documented as tooling, not as evidence that production approval is already complete.
+1. **Sandbox-first by default** — all current MoneyGram flows operate in sandbox mode. No production credential activation has been documented as complete.
 
-## Current implementation boundaries
+2. **Transaction identifier inconsistency** — creation logic stores `provider_reference` and `provider_transaction_id`; webhook and refresh logic references `external_transaction_id`, which has no current matching definition. This must be normalised before production.
 
-The following boundaries are important for engineering, operations, and documentation accuracy.
+3. **Webhook signature verification absent** — `services.moneygram.webhook_secret` is configured, but the current controller and service path does not yet validate incoming webhook signatures against it.
 
-1. **The integration is sandbox-first by default**
-   - Sandbox behavior is deeply built into `getInfo()`, deposit initiation, and withdrawal initiation.
-   - Documentation should not imply that all currently described flows are operating against production MoneyGram credentials.
+4. **SEP-10 not yet implemented** — the current codebase does not include a complete locally hosted SEP-10 authentication workflow. This is a T2 Deliverable 1 item.
 
-2. **Configured currencies are broader than the current controller-validated interface**
-   - The configuration lists 18 currencies.
-   - The controller currently accepts a smaller subset.
+5. **Currency alignment gap** — the full configuration references a broader currency list than the controller currently validates. The controller-enforced set should be treated as the effective interface until frontend UX and provider corridor coverage are fully aligned.
 
-3. **Webhook reconciliation needs identifier normalization**
-   - Creation logic stores `provider_reference` and `provider_transaction_id`.
-   - Webhook and refresh logic currently reference `external_transaction_id`.
+6. **No fixed processing SLA** — corridor timings vary by provider conditions, user actions, KYC state, and environment. Processing time targets in product communications should be framed as goals, not platform guarantees, until end-to-end production validation is complete.
 
-4. **Webhook secret configuration exists, but signature verification is not visible in the reviewed request path**
-   - `services.moneygram.webhook_secret` exists in configuration.
-   - The current controller and service path shown in the reviewed code accepts the payload and processes it without visible signature verification.
+---
 
-5. **Production approval should not be claimed from route or test-helper presence alone**
-   - The repo contains support routes for sandbox and testing.
-   - That is not the same as a formally approved, production-active provider rollout.
+## Production Hardening — SCF Tranche Mapping
 
-6. **Fixed processing-time claims should be avoided**
-   - Corridor timings can vary materially by provider conditions, user actions, KYC state, and environment.
-   - The current code does not establish a platform SLA that should be documented as guaranteed behavior.
+The following items must be completed before the MoneyGram integration is production-ready. Each item is mapped to the funded SCF tranche that delivers it.
 
-## Production hardening roadmap
+| Task | SCF Tranche | Deliverable |
+|---|---|---|
+| SEP-10 backend authentication implementation | T2 | Deliverable 1 — Testnet Deployment & Backend Integration |
+| SEP-6/SEP-24 deposit and withdrawal handling activated | T2 | Deliverable 1 — Testnet Deployment & Backend Integration |
+| UX/UI designs for full SEP-10 + SEP-24 flow (8+ screens) | T1 | Deliverable 3 — MoneyGram UX/UI Architecture |
+| Normalise transaction identifiers across create, refresh, and webhook paths | T2 | Deliverable 3 — E2E Integration & MoneyGram Simulation |
+| Add explicit webhook signature verification using configured `webhook_secret` | T2 | Deliverable 3 — E2E Integration & MoneyGram Simulation |
+| Align supported currencies between configuration, controller validation, and UX | T2 | Deliverable 3 — E2E Integration & MoneyGram Simulation |
+| Confirm production credentialling, corridor scope, and provider approval | T2 | Deliverable 3 — E2E Integration & MoneyGram Simulation |
+| Validate end-to-end flow against MoneyGram test anchor (video walkthrough) | T2 | Deliverable 3 — E2E Integration & MoneyGram Simulation |
+| Formalise KYC and compliance enforcement across controller and provider flows | T2 | Deliverable 3 — E2E Integration & MoneyGram Simulation |
+| Operational runbooks for failed, incomplete, delayed, or disputed transactions | T2 | Deliverable 3 — E2E Integration & MoneyGram Simulation |
+| Targeted automated tests for status handling, webhook processing, reconciliation | T2 | Deliverable 3 — E2E Integration & MoneyGram Simulation |
+| Confirm USDC issuer addresses against live MoneyGram anchor configuration | T2 | Deliverable 3 — E2E Integration & MoneyGram Simulation |
+| SEP-30 account recovery for partner-managed wallets | T3 | Deliverable 2 — Institutional Partner Onboarding |
 
-Before this integration should be presented as production-hardened, the following work should be completed:
+The T2 Deliverable 3 milestone — **E2E Integration & MoneyGram Simulation** — is the single most critical item for this integration. Its completion criteria per the SCF submission are: a GitHub Actions CI report at ≥90% E2E test coverage across the full policy lifecycle, and a recorded video walkthrough of a successful end-to-end withdraw flow from smart contract settlement trigger through to a completed MoneyGram test anchor payout.
 
-1. normalize transaction identifiers across initiation, refresh, and webhook paths
-2. add explicit webhook signature validation using the configured webhook secret
-3. align configured supported currencies with controller validation and frontend UX
-4. confirm production credentialing, corridor scope, and provider-approval status before documenting them as current
-5. validate end-to-end wallet trustline, funding, and cash-ramp behavior on the intended Stellar network mode
-6. formalize KYC and compliance enforcement across controller, provider, and support workflows
-7. document operational runbooks for failed, incomplete, delayed, or disputed transactions
-8. add targeted automated tests around MoneyGram status handling, webhook processing, and transaction reconciliation
+---
+
+*Riwe Technologies Limited · riwe.io · partnerships@riwe.io*
