@@ -1,7 +1,7 @@
 # Soroban Smart Contracts Overview
 ## Riwe Technologies — Parametric Climate Insurance on Stellar
 
-**Related documentation:** [System Architecture →](./System-Architecture.md)
+**Related documentation:** [System Architecture →](./System-Architecture.md) · [Contract Specifications](./Contract-Specifications.md)
 
 ---
 
@@ -635,4 +635,4 @@ The active architecture is the 4-contract modular suite described in this docume
 
 ---
 
-*Riwe Technologies Limited · RC 1899524 · riwe.io*
+*Riwe Technologies Limited · riwe.io · partnerships@riwe.io*
