@@ -626,4 +626,4 @@ This separation is standard for regulated fintech applications using blockchain 
 
 ---
 
-*Riwe Technologies Limited · RC 1899524 · riwe.io · hello@riwe.io*
+*Riwe Technologies Limited · riwe.io · partnerships@riwe.io*
