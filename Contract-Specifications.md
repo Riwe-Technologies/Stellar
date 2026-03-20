@@ -35,8 +35,8 @@ The four contracts are:
 |---|---|---|
 | `insurance-policy` | Policy registry and lifecycle management | ✅ Deployed |
 | `insurance-claim` | Claim evaluation and payout authorisation | ✅ Deployed |
-| `insurance-payment` | Premium collection and USDC payout execution | TBD |
-| `parametric-oracle` | Acurast-verified satellite data ingestion | TBD |
+| `insurance-payment` | Premium collection and USDC payout execution | 🔲 TBD — T2 deliverable |
+| `parametric-oracle` | Acurast-verified satellite data ingestion | 🔲 TBD — T2 deliverable |
 
 Together, these contracts implement the on-chain layer of Riwe's end-to-end parametric insurance protocol: a farmer buys a policy, satellite data confirms a climate event, and USDC is automatically released to the farmer's Stellar wallet — no adjuster, no paperwork, no bank account required.
 
@@ -425,14 +425,14 @@ If any check fails, the submission is rejected with an explicit error code. Veri
 
 ### Testnet Deployment
 
-All four contracts are deployed and functional on Stellar Testnet. Addresses are verifiable at [stellar.expert/explorer/testnet](https://stellar.expert/explorer/testnet).
+The policy and claim contracts are deployed and functional on Stellar Testnet. The payment and oracle contracts are T2 deliverables — source-complete and ready for deployment once the oracle pipeline and USDC configuration are provisioned.
 
 | Contract | Contract ID |
 |---|---|
 | `insurance-policy` | `CCRXGROY4THHIB7QRGMJHBXXN7TPMVEYGBBEFVKGWQXOYH4RHJDB3SHR` |
 | `insurance-claim` | `CCFYJDOFQAQT5DVB2UNU4SWOXMVFLLVWNG47J6G5ZPQGPDMRWSXO75WQ` |
-| `insurance-payment` | `CAWLYJZHPSZ7YLXGTAPARWEW27GNDQ7ZLJVWW5RKN27XKSOJOGRDPEVT` |
-| `parametric-oracle` | `CBYGCVAFPPYVLKWZE2XQKX6RMPLBCNBZKWOVHTJIJX3LSRNYRZSI7TTM` |
+| `insurance-payment` | TBD — T2 deliverable |
+| `parametric-oracle` | TBD — T2 deliverable |
 
 ### Mainnet Status
 
@@ -470,13 +470,13 @@ Contracts must be deployed and initialised in dependency order:
 ### Current Testnet Initialisation Values
 
 ```
-admin:                    GAEKJI3PXTBY27YVOIOB4AFY5GOMXSRAVVMO3LEN456HIK3J4QZEJFT7
+admin:                    [REDACTED — testnet admin account]
 oracles:                  [] (Acurast keys to be provisioned in T2)
 authorized_oracles:       [] (Acurast keys to be provisioned in T2)
 minimum_confidence_score: 70
 auto_payout_threshold:    80
 fee_percentage:           100
-fee_recipient:            GAEKJI3PXTBY27YVOIOB4AFY5GOMXSRAVVMO3LEN456HIK3J4QZEJFT7
+fee_recipient:            [REDACTED — testnet fee recipient account]
 data_retention_period:    86400
 supported_tokens:         [] (USDC to be configured in T2)
 ```
@@ -490,8 +490,8 @@ Live contract IDs are loaded from `.env` and accessed via `config('stellar.insur
 ```env
 STELLAR_POLICY_CONTRACT_ID=CCRXGROY4THHIB7QRGMJHBXXN7TPMVEYGBBEFVKGWQXOYH4RHJDB3SHR
 STELLAR_CLAIM_CONTRACT_ID=CCFYJDOFQAQT5DVB2UNU4SWOXMVFLLVWNG47J6G5ZPQGPDMRWSXO75WQ
-STELLAR_PAYMENT_CONTRACT_ID=CAWLYJZHPSZ7YLXGTAPARWEW27GNDQ7ZLJVWW5RKN27XKSOJOGRDPEVT
-STELLAR_ORACLE_CONTRACT_ID=CBYGCVAFPPYVLKWZE2XQKX6RMPLBCNBZKWOVHTJIJX3LSRNYRZSI7TTM
+STELLAR_PAYMENT_CONTRACT_ID=TBD
+STELLAR_ORACLE_CONTRACT_ID=TBD
 ```
 
 ---
@@ -626,4 +626,4 @@ This separation is standard for regulated fintech applications using blockchain 
 
 ---
 
-*Riwe Technologies Limited · RC 1899524 · riwe.io · hello@riwe.io*
+*Riwe Technologies Limited · riwe.io · partnerships@riwe.io*
