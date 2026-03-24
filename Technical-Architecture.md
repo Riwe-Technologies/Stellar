@@ -1,7 +1,9 @@
 # Technical Architecture
 ## Riwe Technologies — Parametric Climate Insurance on Stellar
 
-Related: [System-Architecture.md](./System-Architecture.md) · [Contract-Specifications.md](./Contract-Specifications.md) · [DeFi-and-Moneygram-Claims-Payout.md](./DeFi-and-Moneygram-Claims-Payout.md)
+Related: [System-Architecture.md](./System-Architecture.md) · [Contract-Specifications.md](./Contract-Specifications.md) · [DeFi-and-Moneygram-Claims-Payout.md](./DeFi-Wallet-System.md)
+
+See contracts files here - [View Rust Codes](./Contracts/)
 
 ---
 
@@ -100,9 +102,9 @@ public function processParametricPayout(string $claimId, array $parametricData):
 | Contract | Role | Testnet ID |
 |---|---|---|
 | `insurance-policy` | Policy creation, registry, lifecycle state | `CCRXGROY4THHIB7QRGMJHBXXN7TPMVEYGBBEFVKGWQXOYH4RHJDB3SHR` |
-| `insurance-claim` | Claim submission, validation, decision logic | `CCFYJDOFQAQT5DVB2UNU4SWOXMVFLLVWNG47J6G5ZPQGPDMRWSXO75WQ` |
-| `insurance-payment` | Premium and payout orchestration, SAC settlement | `CAWLYJZHPSZ7YLXGTAPARWEW27GNDQ7ZLJVWW5RKN27XKSOJOGRDPEVT` |
-| `parametric-oracle` | Authorised oracle input, retained environmental data | `CBYGCVAFPPYVLKWZE2XQKX6RMPLBCNBZKWOVHTJIJX3LSRNYRZSI7TTM` |
+| `insurance-claim` | Claim submission, validation, decision logic | `CCFYJDOFQAQT5DVB2UNU4SWOXMVFLLVWNG47J6G5ZPQGPDMRWSXO75WQ with updates by this submisson` |
+| `insurance-payment` | Premium and payout orchestration, SAC settlement | `TBD by this submission` |
+| `parametric-oracle` | Authorised oracle input, retained environmental data | `TBD by this submission` |
 
 ### Contract Interaction Sequence
 
@@ -157,7 +159,7 @@ env.crypto().ed25519_verify(&oracle_key, &payload_bytes, &signature);
 
 | Surface | Status |
 |---|---|
-| Contract ID configuration | Live — all four IDs in `config/stellar.php` |
+| Contract ID configuration | Live — 2 main IDs (Policy and Claims) in `config/stellar.php` |
 | `invokeContract()` / `queryContract()` | Live |
 | Policy creation | Live — `createPolicy()` calls the `insurance-policy` contract |
 | Premium processing | Placeholder — `processPremiumPayment()` returns `PLACEHOLDER_HASH` (T1) |
@@ -196,9 +198,9 @@ MoneyGram is a backend service integration — not an on-chain component. It sit
 
 | Setting | Value |
 |---|---|
-| Default environment | Sandbox |
-| USDC issuer (testnet) | `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5` |
-| USDC issuer (mainnet) | `GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN` |
+| Default environment | Sandbox Simulation by this submission |
+| USDC issuer (testnet) | `TBD by this submission` |
+| USDC issuer (mainnet) | `TBD by this submission` |
 | Deposit limits | 5 USDC min / 950 USDC max |
 | Withdrawal limits | 5 USDC min / 2,500 USDC max |
 
@@ -275,16 +277,16 @@ MoneyGram is a backend service integration — not an on-chain component. It sit
 - Vault Factory contract — automated Regional Risk Pool Deployment
 
 ### T3 — Mainnet
-- SDF audit and Mainnet deployment of all four contracts
+- SDF audit and Mainnet deployment of all four major contracts, and the administractive/mgt contracts
 - SEP-1 `stellar.toml` configuration
 - Public TypeScript SDK and NPM package at `riwe.io/developers`
 - SEP-30 account recovery for partner-managed wallets
 - Institutional onboarding: Leadway Assurance and NIA-member banks
-- Datadog monitoring at `riwe.io/status`
+- Datadog monitoring at `riwe.io/status (not oprational yet)`
 
 ### Acurast Oracle — Why TEE, Not Centralised Submission
 
-The current oracle model relies on our Laravel application retrieving NDVI data from Sentinel Hub and submitting it to `parametric-oracle` as a single authorised operator. It works, but any party verifying a claim trigger has to trust Riwe as the sole data source.
+The current oracle model relies on our Laravel application retrieving NDVI data from Sentinel Hub and submitting it to `parametric-oracle` as a single authorised operator. It works, but any party verifying a claim trigger has to trust Riwe as the sole data source, and that in istself is flawed and defeats scalability plans.
 
 Acurast runs the same Sentinel Hub retrieval inside a hardware Trusted Execution Environment. The TEE attests that the data was fetched and signed in a tamper-resistant environment — the attestation is verifiable on-chain by any counterparty without trusting us. The data source doesn't change. The trust model does.
 
