@@ -12,6 +12,7 @@
 5. [Key Features](#key-features)
 6. [Security & Compliance](#security--compliance)
 7. [Development Resources](#development-resources)
+8. [Demo Credentials](#Demo-Credentials)
 
 ---
 
@@ -315,7 +316,7 @@ For technical support, questions, or contributions:
 
 ---
 
-## **Demo Login - Off Chain Implementation**
+## Demo Credentials
 Use the login details below to access the demo account; check out the full off chain dashboard and insurance flows. 
 
 URL: https://riwe.io/login
