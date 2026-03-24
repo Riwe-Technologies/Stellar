@@ -310,9 +310,8 @@ $policy = app(StellarPolicyService::class)->createPolicy([
 
 For technical support, questions, or contributions:
 - **Documentation**: See individual files in this directory
-- **Issues**: Report bugs and feature requests
-- **Security**: Report security vulnerabilities privately
-- **Community**: Join developer discussions
+- **Issues**: Report bugs and feature requests to dev@riwe.io
+- **Security**: Report security vulnerabilities privately to dev@riwe.io
 
 ---
 
