@@ -206,9 +206,9 @@ public function handleWebhook(array $payload): bool
 
 ### Wallet Infrastructure
 
-**`DefiWalletService`** — Custodial wallet operations: create or retrieve wallet, sync with Stellar settlement wallet, initiate fiat deposits and withdrawals, send crypto.
+**`DefiWalletService`** — Custodial wallet operations: create or retrieve wallet, sync with Stellar settlement wallet, initiate fiat deposits and withdrawals, and claims settlements. 
 
-**`WalletPlusService`** — Self-custodial operations for partners and higher-assurance farmer accounts: device-bound authentication, biometric signing, transaction preparation, and wallet recovery.
+**`WalletPlusService`** — Self-custodial operations for partners and higher-assurance farmer (agribusiness) accounts: device-bound authentication, biometric signing, transaction preparation, and wallet recovery.
 
 ---
 
@@ -219,9 +219,9 @@ public function handleWebhook(array $payload): bool
 | Contract | Function | Testnet Address |
 |---|---|---|
 | `insurance-policy` | Policy registry and lifecycle | `CCRXGROY4THHIB7QRGMJHBXXN7TPMVEYGBBEFVKGWQXOYH4RHJDB3SHR` |
-| `insurance-claim` | Parametric evaluation and approval | `CCFYJDOFQAQT5DVB2UNU4SWOXMVFLLVWNG47J6G5ZPQGPDMRWSXO75WQ` |
-| `insurance-payment` | USDC pool and payout execution | `CAWLYJZHPSZ7YLXGTAPARWEW27GNDQ7ZLJVWW5RKN27XKSOJOGRDPEVT` |
-| `parametric-oracle` | Verified satellite data storage | `CBYGCVAFPPYVLKWZE2XQKX6RMPLBCNBZKWOVHTJIJX3LSRNYRZSI7TTM` |
+| `insurance-claim` | Parametric evaluation and approval | `CCFYJDOFQAQT5DVB2UNU4SWOXMVFLLVWNG47J6G5ZPQGPDMRWSXO75WQ and to nbe updated by this SCF submission` |
+| `insurance-payment` | USDC pool and payout execution | `TBD by this SCF submission` |
+| `parametric-oracle` | Verified satellite data storage | `TBD by this SCF submission` |
 
 Verifiable at [stellar.expert/explorer/testnet](https://stellar.expert/explorer/testnet).
 
@@ -362,8 +362,8 @@ Route::prefix('api/moneygram')->middleware(['auth:sanctum'])->group(...);
 |---|---|
 | `insurance-policy` Soroban contract | Live on Testnet |
 | `insurance-claim` Soroban contract | Live on Testnet |
-| `insurance-payment` contract | Source complete — T2 deployment |
-| `parametric-oracle` contract | Source complete — T2 deployment |
+| `insurance-payment` contract | T2 deployment |
+| `parametric-oracle` contract | T2 deployment |
 | Laravel Stellar service layer | Integrated and operational |
 | Paystack NGN premium collection | Live |
 | Sentinel Hub satellite data retrieval | Operational — off-chain pipeline |
