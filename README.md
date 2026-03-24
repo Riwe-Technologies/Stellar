@@ -319,15 +319,15 @@ For technical support, questions, or contributions:
 ## Demo Credentials
 Use the login details below to access the demo account; check out the full off chain dashboard and insurance flows. 
 
-URL: https://riwe.io/login
-Email: demouser@riwe.io
-OTP: 612738 
+- URL: https://riwe.io/login
+- Email: demouser@riwe.io
+- OTP: 612738 
 
 ---
 
 ## **Demo Login - On Chain Implementation**
-URL: https://vault.riwe.io 
-Login: Kindly connect metamask wallet (Other wallets coming)
+- URL: https://vault.riwe.io 
+- Login: Kindly connect metamask wallet (Other wallets coming)
 
 ---
 
