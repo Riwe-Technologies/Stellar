@@ -6,7 +6,8 @@ Related: [System-Architecture.md](./System-Architecture.md) · [Contract-Specifi
 
 ## Codebase
 See contracts files here - [View Rust Codes](./Contracts/)
-See Stellar related code files here - [View App Services](./app/services)
+
+See Stellar related code files here - [View App Services](./app/services/)
 
 
 ---
