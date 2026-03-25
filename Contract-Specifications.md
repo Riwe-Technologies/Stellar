@@ -1,7 +1,9 @@
 # Smart Contract Specifications
 ## Riwe Technologies — Parametric Climate Insurance on Stellar
 
-**Related documentation:** [Soroban Smart Contracts Overview ←](./Soroban-Smart-Contracts-Overview.md) · [System Architecture ←](./System-Architecture.md) · [DeFi Wallet and MoneyGram Claims Payout](./DeFi-and-Moneygram-Claims-Payout.md)
+**Related documentation:** [Soroban Smart Contracts Overview ←](./Soroban-Smart-Contracts-Overview.md) · [System Architecture ←](./System-Architecture.md) · [DeFi-Wallet-System.md](./DeFi-Wallet-System.md)
+
+* **[View Rust Codes](./Contracts/)** The Rust-based smart contracts defining the on-chain protocol logic.
 
 ---
 
@@ -11,50 +13,34 @@
 2. [Architecture and Contract Relationships](#architecture-and-contract-relationships)
 3. [Cross-Contract Call Sequence](#cross-contract-call-sequence)
 4. [Contract Specifications](#contract-specifications)
-   - [insurance-policy](#1-insurance-policy)
-   - [insurance-claim](#2-insurance-claim)
-   - [insurance-payment](#3-insurance-payment)
-   - [parametric-oracle](#4-parametric-oracle)
 5. [Live Contract Addresses](#live-contract-addresses)
 6. [Deployment Specifications](#deployment-specifications)
 7. [Storage Key Reference](#storage-key-reference)
 8. [Security Risks and Mitigations](#security-risks-and-mitigations)
 9. [Mainnet Readiness Checklist](#mainnet-readiness-checklist)
-10. [Governance and Compliance Model](#governance-and-compliance-model)
+10. [Governance and Compliance](#governance-and-compliance)
 11. [Operational Notes](#operational-notes)
 
 ---
 
 ## Overview
 
-Riwe's Soroban implementation is a **modular 4-contract parametric insurance suite** deployed on **Stellar Testnet**, with Mainnet deployment as the T3 SCF deliverable.
-
-The four contracts are:
+Riwe's on-chain implementation is a modular four-contract Soroban suite deployed on Stellar Testnet. Mainnet deployment is the T3 SCF deliverable.
 
 | Contract | Role | Testnet Status |
 |---|---|---|
-| `insurance-policy` | Policy registry and lifecycle management | ✅ Deployed |
-| `insurance-claim` | Claim evaluation and payout authorisation | ✅ Deployed |
-| `insurance-payment` | Premium collection and USDC payout execution | 🔲 TBD — T2 deliverable |
-| `parametric-oracle` | Acurast-verified satellite data ingestion | 🔲 TBD — T2 deliverable |
+| `insurance-policy` | Policy registry and lifecycle management | Live |
+| `insurance-claim` | Claim evaluation and payout authorisation | Live |
+| `insurance-payment` | Premium collection and USDC payout execution | T2 deliverable |
+| `parametric-oracle` | Acurast-verified satellite data ingestion | T2 deliverable |
 
-Together, these contracts implement the on-chain layer of Riwe's end-to-end parametric insurance protocol: a farmer buys a policy, satellite data confirms a climate event, and USDC is automatically released to the farmer's Stellar wallet — no adjuster, no paperwork, no bank account required.
+Together these contracts implement the complete on-chain layer: a farmer buys a policy, satellite data confirms a climate event, and USDC is automatically released to the farmer's Stellar wallet. No adjuster, no paperwork, no bank account required.
 
-This document is the authoritative specification for the 4-contract suite. All application references and deployment configurations should treat this as the canonical source.
+This document is the authoritative specification for the four-contract suite. All application references and deployment configurations should treat this as the canonical source.
 
 ---
 
 ## Architecture and Contract Relationships
-
-### Architectural Model
-
-The contracts follow the standard Soroban pattern:
-
-```
-Rust source → WASM build → contract deployment → on-chain initialisation
-```
-
-The suite is intentionally split by business domain rather than built as a monolith. Each contract owns its own state and exposes a clean interface for cross-contract calls. This improves auditability, enables focused upgrades, and reduces the blast radius of any single contract issue.
 
 ### Contract Responsibility Summary
 
@@ -65,95 +51,104 @@ The suite is intentionally split by business domain rather than built as a monol
 | `insurance-payment` | USDC pool balance, payment records, payout execution | — |
 | `parametric-oracle` | Verified satellite data submissions, oracle allow-list | — |
 
+The contracts are split by business domain rather than built as a monolith for a practical reason: Leadway Assurance needs to be able to audit settlement logic and fund custody independently of claim decision logic. Keeping `insurance-payment` separate from `insurance-claim` means an insurer can review fund movements without needing to understand parametric trigger evaluation, and vice versa.
+
 ### Architecture Flow
 
-```mermaid
-flowchart TD
-    U["Farmer / Policyholder"]
-    B["Laravel Backend / Operator"]
-    P["insurance-policy"]
-    C["insurance-claim"]
-    PAY["insurance-payment"]
-    O["parametric-oracle"]
-    ORA["Acurast TEE Processor"]
-    S[("Soroban Storage")]
-    T["USDC Token Flow"]
-
-    U -->|"policy purchase"| B
-    B -->|"create_policy(...)"| P
-    P -->|"policy records"| S
-
-    U -->|"premium payment"| B
-    B -->|"process_premium(...)"| PAY
-    PAY -->|"pool accounting"| S
-    PAY --> T
-
-    U -->|"claim submission"| B
-    B -->|"submit_claim(...)"| C
-    C -->|"get_policy(policy_id)"| P
-    C -->|"claim records"| S
-
-    ORA -->|"submit_data(...) — ed25519 signed"| O
-    O -->|"oracle submissions"| S
-    B -->|"get_latest_data(...)"| O
-    B -->|"process_parametric_claim(...)"| C
-    C -->|"get_policy(policy_id)"| P
-    C -->|"process_claim_payout(...)"| PAY
-    PAY -->|"USDC to farmer wallet"| T
-    PAY -->|"payout records"| S
+```
+Farmer / Policyholder
+        │
+        ▼
+Laravel Backend / Operator
+        │
+        ├── create_policy() ──────────────────────→ insurance-policy
+        │                                                   │ stores policy record
+        │                                                   │ on-chain
+        │
+        ├── process_premium() ──────────────────→ insurance-payment
+        │                                                   │ credits pool balance
+        │
+        ├── submit_claim() ─────────────────────→ insurance-claim
+        │                                           │
+        │                                           └── get_policy() → insurance-policy
+        │
+Acurast TEE Processor
+        │  ed25519-signed payload
+        ▼
+parametric-oracle
+        │  stores verified data in Persistent storage
+        │
+        ▼
+Laravel Backend reads oracle data
+        │
+        ▼
+insurance-claim
+        │  evaluates trigger conditions
+        │
+        └── process_claim_payout() ─────────────→ insurance-payment
+                                                        │
+                                                        └── SAC transfer
+                                                            → farmer Stellar wallet
 ```
 
-**Note on oracle flow:** The `insurance-claim` contract does not directly call the `parametric-oracle` contract. Oracle data is stored in `parametric-oracle` by the Acurast TEE processor, retrieved by the Laravel backend, and supplied to `insurance-claim` as a verified payload during parametric claim processing. This backend-mediated pattern keeps the claim contract's logic clean and testable while preserving full on-chain verifiability of the underlying data.
+The oracle flow is worth explaining explicitly: `insurance-claim` does not call `parametric-oracle` directly. The Laravel backend reads oracle data from `parametric-oracle`, verifies it looks correct at the application layer, and supplies it to `insurance-claim` as a verified payload. The oracle's own verification — allow-list check, ed25519 signature, freshness — happened on-chain when Acurast submitted the data. This pattern keeps the claim contract testable in isolation while preserving full on-chain verifiability of the underlying satellite data.
 
 ### Shared Crate
 
-`contracts/shared` is **not a deployable contract**. It is a Rust support library providing shared domain types, validation helpers, event definitions, and error codes used across all four deployable contracts.
+`contracts/shared` is a Rust support library providing shared domain types, validation helpers, event definitions, and error codes used across all four contracts. It is not a deployable contract and should not be counted as such.
 
 ---
 
 ## Cross-Contract Call Sequence
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Farmer as Farmer
-    participant App as Laravel Backend
-    participant Policy as insurance-policy
-    participant Payment as insurance-payment
-    participant Claim as insurance-claim
-    participant Oracle as parametric-oracle
-    actor Acurast as Acurast TEE Processor
+```
+Farmer
+  │
+  │ 1. Purchase policy (USSD / app)
+  ▼
+Laravel Backend
+  │
+  │ 2. create_policy(farm_polygon, crop, triggers, coverage)
+  ▼
+insurance-policy → policy_id confirmed on-chain
 
-    Farmer->>App: Purchase policy (USSD / app)
-    App->>Policy: create_policy(farm_polygon, crop, triggers, coverage)
-    Policy-->>App: policy_id confirmed on-chain
+  │ 3. process_premium(policy_id, payer, amount, USDC)
+  ▼
+insurance-payment → pool balance updated
 
-    Farmer->>App: Pay premium (Paystack / MTN Mobile Money)
-    App->>Payment: process_premium(policy_id, payer, amount, USDC)
-    Payment-->>App: payment_id / pool balance updated
+  │ 4. submit_claim(policy_id, claimant, amount)
+  ▼
+insurance-claim
+  │ get_policy(policy_id) → insurance-policy
+  └── claim_id / submitted status returned to backend
 
-    Farmer->>App: Submit claim (or automated trigger)
-    App->>Claim: submit_claim(policy_id, claimant, amount)
-    Claim->>Policy: get_policy(policy_id)
-    Policy-->>Claim: policy data, trigger config
-    Claim-->>App: claim_id / submitted status
+--- Runs continuously throughout the season ---
 
-    Note over Acurast,Oracle: Runs continuously throughout the season
-    Acurast->>Oracle: submit_data(location, ndvi, rainfall, timestamp, confidence, signature)
-    Note over Oracle: Verifies allow-list, ed25519 sig, freshness, confidence threshold
+Acurast TEE Processor
+  │ submit_data(location, ndvi, rainfall, timestamp, confidence, signature)
+  ▼
+parametric-oracle
+  [verifies allow-list, ed25519 sig, freshness, confidence threshold]
+  [stores in Persistent storage]
 
-    App->>Oracle: get_latest_data(farm_location)
-    Oracle-->>App: verified parametric_data payload
+--- Trigger condition met ---
 
-    Note over App,Claim: Trigger condition met — parametric claim evaluation
-    App->>Claim: process_parametric_claim(claim_id, parametric_data, oracle_address)
-    Claim->>Policy: get_policy(policy_id)
-    Policy-->>Claim: policy data confirmed active
-    Claim->>Payment: process_claim_payout(claim_id, farmer_wallet, amount, USDC)
-    Payment-->>Claim: payout confirmed — USDC transferred
-    Claim-->>App: claim status → Paid
-    App-->>Farmer: Notification — payout sent to Stellar wallet
-    Note over Farmer: SEP-24 MoneyGram withdrawal → NGN cash at agent point (T2 deliverable)
+Laravel Backend
+  │ get_latest_data(farm_location) → parametric-oracle
+  │ process_parametric_claim(claim_id, parametric_data)
+  ▼
+insurance-claim
+  │ get_policy(policy_id) → insurance-policy
+  │ [validates oracle data, updates claim state]
+  │ process_claim_payout(claim_id, farmer_wallet, amount, USDC)
+  ▼
+insurance-payment
+  [SAC transfer: USDC from pool to farmer Stellar wallet]
+  └── payout confirmed → claim status → Paid
+
+  │ Farmer notified via SMS
+  ▼
+SEP-24 MoneyGram withdrawal → NGN cash at agent point (T2 deliverable)
 ```
 
 ---
@@ -176,7 +171,7 @@ initialize(
 )
 ```
 
-#### Function Reference
+#### Functions
 
 | Function | Description |
 |---|---|
@@ -188,7 +183,7 @@ initialize(
 | `expire_policies` | Batch-expire policies past their term end date |
 | `get_policy` | Return full policy record by policy ID |
 | `get_policy_status` | Return current lifecycle state for a policy |
-| `is_policy_active` | Boolean check — used by claim contract before accepting submissions |
+| `is_policy_active` | Boolean check used by insurance-claim before accepting submissions |
 | `get_policies_by_holder` | Return all policy IDs for a given wallet address |
 | `get_active_policies` | Return all currently active policy IDs |
 | `get_expired_policies` | Return all expired policy IDs |
@@ -235,13 +230,13 @@ initialize(
 )
 ```
 
-#### Function Reference
+#### Functions
 
 | Function | Description |
 |---|---|
 | `initialize` | Deploy-time setup including addresses of policy and payment contracts |
 | `submit_claim` | Accept a new claim submission linked to an active policy |
-| `process_parametric_claim` | Evaluate parametric trigger conditions using supplied oracle data; approve and trigger payout if threshold met |
+| `process_parametric_claim` | Evaluate parametric trigger conditions against supplied oracle data; approve and trigger payout if threshold met |
 | `approve_claim` | Admin-controlled manual approval path |
 | `reject_claim` | Reject a claim with a recorded reason |
 | `mark_claim_paid` | Confirm payout completion from payment contract |
@@ -270,7 +265,7 @@ initialize(
 
 | Key | Purpose |
 |---|---|
-| `Config` | Admin, oracle set, threshold configuration |
+| `Config` | Claim contract admin, oracle set, threshold configuration |
 | `Claim(claim_id)` | Full claim record |
 | `ClaimCount` | Global claim counter |
 | `ClaimsByClaimant(address)` | Claim IDs indexed by farmer wallet address |
@@ -282,20 +277,20 @@ initialize(
 | `PolicyContract` | Address of the `insurance-policy` contract |
 | `PaymentContract` | Address of the `insurance-payment` contract |
 
-#### Security: CHECKS-EFFECTS-INTERACTIONS
+#### CHECKS-EFFECTS-INTERACTIONS
 
-The `process_parametric_claim` and payout flow follows the CHECKS-EFFECTS-INTERACTIONS pattern:
+`process_parametric_claim` follows this pattern strictly:
 1. **Checks** — validate policy status, oracle data freshness, confidence score, and claim eligibility
 2. **Effects** — update claim state to `Approved` before any external call
 3. **Interactions** — call `insurance-payment` to execute the USDC transfer
 
-This ordering prevents re-entrancy-style vulnerabilities in the payout flow.
+This ordering is necessary because `insurance-claim` makes a cross-contract call. Updating state before the external call means a re-entrancy attempt cannot trigger a second payout for the same claim.
 
 ---
 
 ### 3. insurance-payment
 
-**Role:** Premium collection, insurance pool accounting, and USDC payout execution. The on-chain financial execution module.
+**Role:** Premium collection, insurance pool accounting, and USDC payout execution.
 
 **Initialise:**
 ```
@@ -312,11 +307,11 @@ initialize(
 )
 ```
 
-#### Function Reference
+#### Functions
 
 | Function | Description |
 |---|---|
-| `initialize` | Deploy-time setup including policy/claim contract addresses and initial supported token list |
+| `initialize` | Deploy-time setup including policy and claim contract addresses, and initial supported token list |
 | `process_premium` | Accept a premium payment and credit the insurance pool balance |
 | `process_claim_payout` | Execute a USDC transfer from the insurance pool to a farmer's Stellar wallet address |
 | `get_payment` | Return a payment or payout record by payment ID |
@@ -331,8 +326,8 @@ initialize(
 
 | Event | Trigger |
 |---|---|
-| `PaymentProcessed` (type: `Premium`) | Premium deposited into insurance pool |
-| `PaymentProcessed` (type: `Payout`) | USDC payout executed to farmer wallet |
+| `PaymentProcessed` (type: Premium) | Premium deposited into insurance pool |
+| `PaymentProcessed` (type: Payout) | USDC payout executed to farmer wallet |
 
 #### State Keys
 
@@ -353,15 +348,13 @@ initialize(
 | `InsurancePool` | Aggregated pool balance per asset |
 | `SupportedTokens` | Allowed payment assets (USDC primary) |
 
-#### USDC and Stellar Asset Contract
-
-`insurance-payment` uses Stellar Asset Contract (SAC) operations for USDC transfers. USDC is the primary settlement asset. The contract is designed to support multiple tokens but USDC is the production-intended asset for all insurance pool operations.
+We use Stellar Asset Contract (SAC) operations for USDC transfers rather than a custom token implementation because USDC on Stellar already has established issuer trust, regulatory standing, and direct compatibility with MoneyGram's SEP-24 anchor. A custom settlement token would introduce issuer risk we do not need.
 
 ---
 
 ### 4. parametric-oracle
 
-**Role:** Acurast TEE oracle data ingestion, verification, and storage. The trust anchor for parametric claim evaluation.
+**Role:** Acurast TEE oracle data ingestion, verification, and on-chain storage. The trust anchor for parametric claim evaluation.
 
 **Initialise:**
 ```
@@ -373,7 +366,7 @@ initialize(
 )
 ```
 
-#### Function Reference
+#### Functions
 
 | Function | Description |
 |---|---|
@@ -388,10 +381,6 @@ initialize(
 | `get_config` | Return current oracle contract configuration |
 | `update_config` | Admin-only config update |
 
-#### Events
-
-The `shared` crate defines an `OracleDataSubmitted` event type. Explicit `env.events().publish(...)` calls in the current oracle contract source are to be confirmed in the T1 contract delivery.
-
 #### State Keys
 
 | Key | Purpose |
@@ -402,30 +391,28 @@ The `shared` crate defines an `OracleDataSubmitted` event type. Explicit `env.ev
 | `SubmissionsByLocation(location)` | Submission IDs indexed by farm GPS location |
 | `LatestSubmission(location)` | Most recent verified submission per farm location |
 | `SubmissionCount` | Global oracle submission counter |
-| `DataRetentionPeriod` | Freshness window — submissions outside this window are stale |
+| `DataRetentionPeriod` | Maximum age of a valid oracle submission |
 
-#### Verification Logic
-
-Every call to `submit_data` enforces the following checks in order:
+#### Verification Logic on Every Submission
 
 ```
 1. Verify submitter address is in the authorised Acurast allow-list
 2. Verify ed25519 signature on the data payload
-3. Check submission timestamp is within DataRetentionPeriod (freshness)
-4. Check confidence score ≥ minimum_confidence_score threshold
+3. Check submission timestamp is within DataRetentionPeriod
+4. Check confidence score meets minimum threshold
 5. Store verified payload in Soroban Persistent storage
 6. Update LatestSubmission(location) index
 ```
 
-If any check fails, the submission is rejected with an explicit error code. Verified submissions are available immediately to the Laravel backend via `get_latest_data`.
+If any check fails, the submission is rejected with a specific error code. No partial writes, no silent failures.
+
+Note on `OracleDataSubmitted` events: explicit `env.events().publish(...)` calls in the current oracle contract source are to be confirmed in the T1 contract delivery.
 
 ---
 
 ## Live Contract Addresses
 
-### Testnet Deployment
-
-The policy and claim contracts are deployed and functional on Stellar Testnet. The payment and oracle contracts are T2 deliverables — source-complete and ready for deployment once the oracle pipeline and USDC configuration are provisioned.
+### Testnet
 
 | Contract | Contract ID |
 |---|---|
@@ -434,21 +421,21 @@ The policy and claim contracts are deployed and functional on Stellar Testnet. T
 | `insurance-payment` | TBD — T2 deliverable |
 | `parametric-oracle` | TBD — T2 deliverable |
 
-### Mainnet Status
+Both live contracts verifiable at [stellar.expert/explorer/testnet](https://stellar.expert/explorer/testnet).
 
-No Mainnet deployment exists yet. Mainnet deployment is the **T3 SCF deliverable**, following SDF contract audit and full Testnet E2E validation in T2.
+### Mainnet
 
-Any previously documented Mainnet addresses were placeholders and are not valid.
+No Mainnet deployment exists. Mainnet deployment is the T3 SCF deliverable following SDF contract audit and full Testnet end-to-end validation in T2. Any previously documented Mainnet addresses were placeholders and are not valid.
 
 ---
 
 ## Deployment Specifications
 
-### Build and Deployment Standard
+### Build and Deployment
 
 | Parameter | Value |
 |---|---|
-| Contract language | Rust |
+| Language | Rust |
 | Platform | Soroban on Stellar |
 | WASM target | `wasm32v1-none` |
 | CLI | `stellar` |
@@ -458,10 +445,8 @@ Any previously documented Mainnet addresses were placeholders and are not valid.
 
 ### Deployment Order
 
-Contracts must be deployed and initialised in dependency order:
-
 ```
-1. insurance-policy    → no dependencies
+1. insurance-policy    → no dependencies, deployed first
 2. insurance-payment   → initialised with policy_contract address
 3. insurance-claim     → initialised with policy_contract and payment_contract addresses
 4. parametric-oracle   → initialised with admin and initial oracle allow-list
@@ -470,22 +455,22 @@ Contracts must be deployed and initialised in dependency order:
 ### Current Testnet Initialisation Values
 
 ```
-admin:                    [REDACTED — testnet admin account]
-oracles:                  [] (Acurast keys to be provisioned in T2)
-authorized_oracles:       [] (Acurast keys to be provisioned in T2)
+admin:                    [testnet admin account]
+oracles:                  [] (Acurast keys provisioned in T2)
+authorized_oracles:       [] (Acurast keys provisioned in T2)
 minimum_confidence_score: 70
 auto_payout_threshold:    80
 fee_percentage:           100
-fee_recipient:            [REDACTED — testnet fee recipient account]
+fee_recipient:            [testnet fee recipient account]
 data_retention_period:    86400
-supported_tokens:         [] (USDC to be configured in T2)
+supported_tokens:         [] (USDC configured in T2)
 ```
 
-The empty `authorized_oracles` and `supported_tokens` reflect the current Testnet state. **Provisioning these for production is a T2 deliverable.** The oracle allow-list will be populated with registered Acurast TEE processor keys when the oracle pipeline is activated.
+The empty `authorized_oracles` and `supported_tokens` are intentional and reflect current Testnet state. Populating the oracle allow-list with registered Acurast TEE processor keys and configuring the USDC token address are T2 deliverables.
 
-### Application Configuration Mapping
+### Application Configuration
 
-Live contract IDs are loaded from `.env` and accessed via `config('stellar.insurance.*')`:
+Live contract IDs are loaded from `.env` via `config('stellar.insurance.*')`:
 
 ```env
 STELLAR_POLICY_CONTRACT_ID=CCRXGROY4THHIB7QRGMJHBXXN7TPMVEYGBBEFVKGWQXOYH4RHJDB3SHR
@@ -502,9 +487,9 @@ STELLAR_ORACLE_CONTRACT_ID=TBD
 
 | Key | Purpose |
 |---|---|
-| `Config` | Contract admin, oracle set, fee configuration |
+| `Config` | Admin, oracle set, fee configuration |
 | `Policy(String)` | Full policy record keyed by policy ID |
-| `PolicyCount` | Global policy counter used in ID generation |
+| `PolicyCount` | Global policy counter |
 | `PoliciesByHolder(Address)` | Policy IDs indexed by farmer wallet address |
 | `ActivePolicies` | Registry of currently active policy IDs |
 | `ExpiredPolicies` | Registry of expired policy IDs |
@@ -513,7 +498,7 @@ STELLAR_ORACLE_CONTRACT_ID=TBD
 
 | Key | Purpose |
 |---|---|
-| `Config` | Claim contract admin, oracle set, threshold configuration |
+| `Config` | Admin, oracle set, threshold configuration |
 | `Claim(String)` | Full claim record keyed by claim ID |
 | `ClaimCount` | Global claim counter |
 | `ClaimsByClaimant(Address)` | Claim IDs indexed by claimant wallet address |
@@ -529,7 +514,7 @@ STELLAR_ORACLE_CONTRACT_ID=TBD
 
 | Key | Purpose |
 |---|---|
-| `Config` | Payment contract admin and fee configuration |
+| `Config` | Admin and fee configuration |
 | `Payment(String)` | Payment or payout record keyed by payment ID |
 | `PaymentCount` | Global payment counter |
 | `PaymentsByPayer(Address)` | Payments indexed by payer |
@@ -562,67 +547,57 @@ STELLAR_ORACLE_CONTRACT_ID=TBD
 
 | Risk | Current Mitigation | Mainnet Requirement |
 |---|---|---|
-| Unauthorised admin actions | `require_auth()` on all admin-gated functions; admin-controlled initialisation | Hardened admin key custody, rotation policy, multi-sig for critical operations |
-| Malicious or fabricated oracle inputs | Acurast allow-list verification; ed25519 signature check; confidence threshold; freshness check | Non-empty production oracle set; Acurast key rotation procedure; oracle anomaly monitoring |
-| Cross-contract payout inconsistency | CHECKS-EFFECTS-INTERACTIONS pattern in claim contract; modular separation with explicit state coordination | End-to-end payout failure and retry scenario coverage; incident response runbook |
-| Token misconfiguration | Supported-token whitelist in `insurance-payment`; explicit payment asset configuration | Whitelist only audited production assets (USDC); validate decimals, issuer, and pool treasury |
-| Soroban state expiration on Testnet | TTL renewal helpers included in all contracts | Production TTL monitoring, automated renewal, and state archival procedures |
-| Configuration drift | `.env` and `config('stellar.insurance.*')` as runtime source of truth | Signed deployment runbook; post-deploy verification checklist; environment template alignment |
-| Incomplete event observability | Policy, claim, and payment contracts emit domain events | Confirm `OracleDataSubmitted` events in T1 delivery; add admin-action events for compliance |
-| Network or deployment errors | Explicit deployment script with contract ID persistence | Release approval gate; post-deploy smoke tests; rollback runbook |
+| Unauthorised admin actions | `require_auth()` on all admin-gated functions | Hardened admin key custody, rotation policy, multi-sig for critical operations |
+| Fabricated oracle data | Acurast allow-list; ed25519 signature check; confidence threshold; freshness check | Non-empty production oracle set; Acurast key rotation procedure; oracle anomaly monitoring |
+| Re-entrancy on payout | CHECKS-EFFECTS-INTERACTIONS in claim contract | End-to-end payout failure and retry scenario coverage; incident response runbook |
+| Token misconfiguration | Supported-token whitelist in `insurance-payment` | Whitelist only audited production assets (USDC); validate decimals and issuer |
+| Soroban state expiration | TTL renewal helpers included in all contracts | Production TTL monitoring, automated renewal, and state archival procedures |
+| Configuration drift | `.env` and `config('stellar.insurance.*')` as runtime source of truth | Signed deployment runbook; post-deploy verification checklist |
+| Incomplete event observability | Policy, claim, and payment contracts emit domain events | Confirm `OracleDataSubmitted` events in T1 delivery |
+| Network or deployment errors | Deployment script with contract ID persistence to `.env.deployed` | Post-deploy smoke tests; rollback runbook |
 
 ---
 
 ## Mainnet Readiness Checklist
 
-The following must be completed before the T3 Mainnet deployment:
+Before T3 Mainnet deployment:
 
-- [ ] External security audit of the full 4-contract suite
+- [ ] External security audit of the full four-contract suite
 - [ ] Provision production Acurast TEE oracle keys and populate `authorized_oracles`
 - [ ] Configure supported production tokens (USDC issuer, decimals, treasury accounts) in `insurance-payment`
 - [ ] Finalise admin account custody: key management, signer policy, secret rotation
-- [ ] Run full E2E test coverage: policy creation, premium collection, parametric claim, payout, rejection, oracle-driven flows
+- [ ] Full end-to-end test coverage: policy creation, premium collection, parametric claim, payout, rejection, oracle-driven flows
 - [ ] Validate MoneyGram SEP-24 withdrawal flow end-to-end against live anchor
 - [ ] Define and validate Soroban RPC and Horizon failover procedures
 - [ ] Deploy `stellar.toml` (SEP-1) for protocol discovery
 - [ ] Implement SEP-30 account recovery for partner-managed wallets
-- [ ] Set up Datadog monitoring: TTL/state health, failed invocations, payout failures, oracle anomalies
-- [ ] Publish TypeScript SDK and NPM package for ecosystem developers
-- [ ] Publish developer documentation at `riwe.io/developers`
-- [ ] Complete backend config rollout, environment templates, and operational handoff
+- [ ] Datadog monitoring: TTL/state health, failed invocations, payout failures, oracle anomalies
+- [ ] TypeScript SDK and NPM package published at `riwe.io/developers`
 - [ ] Remove legacy `simple_insurance.wasm` references from application code
+- [ ] Backend config rollout, environment templates, and operational handoff complete
 
 ---
 
-## Governance and Compliance Model
+## Governance and Compliance
 
 ### On-chain governance
 
-There is currently no separate on-chain governance contract. Contract configuration and upgrades are controlled by the admin key established at initialisation. This is appropriate for the current Testnet and T2 stage.
-
-Multi-sig governance and on-chain parameter adjustment mechanisms are considered for post-Mainnet roadmap depending on protocol adoption and partner requirements.
-
-### Security and control patterns
-
-- `require_auth()` enforces caller authorisation on all state-changing operations
-- Oracle inputs are restricted to allow-listed Acurast processor keys
-- Confidence score and freshness thresholds prevent low-quality data from driving payouts
-- Each contract has a single responsibility, reducing the attack surface per module
+There is no separate on-chain governance contract at this stage. Contract configuration and upgrades are controlled by the admin key established at initialisation. This is appropriate for Testnet and T2. Multi-sig governance is a post-Mainnet consideration depending on protocol adoption and partner requirements.
 
 ### Compliance model
 
-Business compliance — KYC/AML, operator review, regulatory reporting, NAICOM distribution agent status under Leadway Assurance — is handled in the Laravel application layer. The on-chain layer is responsible for deterministic execution, state control, and providing an auditable record of every policy, claim, and payout.
+KYC/AML, operator review, regulatory reporting, and NAICOM distribution agent status under Leadway Assurance are all handled in the Laravel application layer. The on-chain layer is responsible for deterministic execution, state control, and providing an auditable record of every policy, claim, and payout.
 
-This separation is standard for regulated fintech applications using blockchain infrastructure. The on-chain record is the source of truth for payout verification; the off-chain layer handles the regulated identity and compliance surface.
+This is a deliberate architectural boundary. The on-chain record is the source of truth for payout verification. The off-chain layer handles the regulated identity and compliance surface. Combining them would complicate contract auditability without adding meaningful security.
 
 ---
 
-## Operational Notes
+## Internal Operational Notes
 
-- The earlier disappearing-state issue on Testnet was caused by Soroban TTL expiration combined with stale Laravel config cache lookups. TTL renewal helpers have been added to all four contracts to reduce recurrence.
-- Runtime integrations must use `config('stellar.insurance.*')` values sourced from `.env` as the authoritative contract address reference. Hardcoded contract IDs in application code are a deployment risk.
-- Testnet infrastructure should be treated as non-production even when deployments are stable. All load, security, and recovery testing should be done on Testnet before any Mainnet deployment.
-- The empty `authorized_oracles` list in the current Testnet initialisation is intentional — Acurast TEE processor key registration is a T2 deliverable. The oracle contract is deployed and verified; it is awaiting production key provisioning.
+- The Soroban TTL expiration issue on Testnet (disappearing state) was caused by TTL expiration combined with stale Laravel config cache lookups. TTL renewal helpers have been added to all four contracts.
+- Runtime integrations must use `config('stellar.insurance.*')` values sourced from `.env`. Hardcoded contract IDs in application code are a deployment risk — they will point to the wrong contracts if the deployment is refreshed.
+- Testnet infrastructure should be treated as non-production even when deployments are stable. All load, security, and recovery testing happens on Testnet before any Mainnet deployment.
+- The empty `authorized_oracles` list in the current Testnet initialisation is intentional. The oracle contract is deployed and verified. Acurast TEE processor key registration is a T2 deliverable.
 
 ---
 
