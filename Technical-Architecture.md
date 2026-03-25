@@ -3,11 +3,15 @@
 
 Related: [System-Architecture.md](./System-Architecture.md) · [Contract-Specifications.md](./Contract-Specifications.md) · [DeFi-Wallet-System.md](./DeFi-Wallet-System.md)
 
+---
 
-## Codebase
-See contracts files here - [View Rust Codes](./Contracts/)
+## Codebase Repository Structure
 
-See Stellar related code files here - [View App Services](./app/services/)
+* **[View App Services](./app/Services/)** Core business logic and service integrations for the backend application.
+
+* **[View Rust Codes](./Contracts/)** The Rust-based smart contracts defining the on-chain protocol logic.
+
+* **[Stellar Integration Tests](./tests/)** Automated test suite proving the end-to-end flow of the system works as expected.
 
 
 ---
