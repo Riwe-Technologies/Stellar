@@ -1,9 +1,13 @@
 # Technical Architecture
 ## Riwe Technologies — Parametric Climate Insurance on Stellar
 
-Related: [System-Architecture.md](./System-Architecture.md) · [Contract-Specifications.md](./Contract-Specifications.md) · [DeFi-and-Moneygram-Claims-Payout.md](./DeFi-Wallet-System.md)
+Related: [System-Architecture.md](./System-Architecture.md) · [Contract-Specifications.md](./Contract-Specifications.md) · [DeFi-Wallet-System.md](./DeFi-Wallet-System.md)
 
+
+## Codebase
 See contracts files here - [View Rust Codes](./Contracts/)
+See Stellar related code files here - [View App Services](./app/services)
+
 
 ---
 
