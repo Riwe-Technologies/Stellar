@@ -27,19 +27,27 @@ Related: [System-Architecture.md](./System-Architecture.md) · [Contract-Specifi
 
 ---
 
+## Why the Stellar Chain
+
+First, money moves in every cycle of insurance, from premium payment to claims settlement, and we are building for the last mile, farmers who have long been financially excluded. To build this, we first ensured that moving mony was easy for these farmers who don't have bank accounts or formal financial literacy. This is where monygram comes in. MoneyGram already operates as a SEP-24 anchor on Stellar. That means USDC settled on Stellar can be converted to NGN and disbursed as cash through MoneyGram's Nigerian agent network without building a custom fiat bridge. 
+
+Second, Soroban's deterministic execution model is the right fit for parametric insurance. The same oracle data and trigger conditions must always produce the same claim outcome. No discretion, no dispute, no adjuster. Soroban guarantees that.
+
+Third, USDC as a native Stellar asset means the insurance pool, premium flows, and payouts are all denominated in a stablecoin that is auditable by our insurers and any reinsurer without exposure to crypto volatility. Farmers never touch USDC, they pay in NGN and collect in NGN. The USDC layer is internal settlement infrastructure.
+
+
 ## What Stellar uniquely enables
 
-This is not a project that uses Stellar as a payment rail while the core logic lives elsewhere. Stellar's specific primitives are load-bearing to the protocol design.
-
-**SAC-based atomic payouts.** Soroban's Stellar Asset Contract standard lets the `insurance-payment` contract hold and transfer USDC in a single atomic on-chain operation with no bridge, no wrapped token, and no custodian approval step. When a parametric trigger fires, the SAC transfer executes in the same transaction as the claim decision. This is what reduces settlement from 45 days to under 48 hours.
-
-**SEP-24 last-mile settlement.** MoneyGram's SEP-24 anchor is a Stellar-native protocol. USDC settled on Stellar flows directly into the MoneyGram withdrawal flow without any cross-chain conversion. A farmer receives NGN cash at a local agent point from a payout that originated as a Soroban contract invocation. No other major chain has this path at production scale in Nigeria today.
-
-**SEP-10 trustless authentication.** Farmers and partner institutions authenticate to the protocol using their Stellar keypair via SEP-10 Web Auth, a challenge-response signature scheme that requires no password, no OTP, and no custodial account. This is the authentication primitive that allows USSD and WhatsApp flows to be cryptographically verified without a smartphone.
+**Transparent, auditable risk records.** Every policy issuance, oracle submission, and claim payout is anchored on the Stellar ledger. Licensed insurer partners can independently verify the full history of any policy they have underwritten without calling us. This is the audit trail that traditional parametric insurance cannot offer.
 
 **Micro-policy economics.** The average Riwe policy covers a smallholder farm with a crop value of $200 to $800. A $3 premium policy is only economically viable when the settlement fee is a fraction of a cent. Stellar's fee model, currently under $0.0001 per operation, is the reason micro-insurance at this scale works. It does not work on Ethereum or Polygon at current fee levels.
 
-**Transparent, auditable risk records.** Every policy issuance, oracle submission, and claim payout is anchored on the Stellar ledger. Licensed insurer partners can independently verify the full history of any policy they have underwritten without calling us. This is the audit trail that traditional parametric insurance cannot offer.
+**SAC-based atomic payouts.** Soroban's Stellar Asset Contract standard lets the `insurance-payment` contract hold and transfer USDC in a single atomic on-chain operation with no bridge, no wrapped token, and no custodian approval step. When a parametric trigger fires, the SAC transfer executes in the same transaction as the claim decision. This is what reduces settlement from the current industry sandard of 2 to 4 weeks to juust under 48 hours.
+
+**SEP-24 last-mile settlement.** MoneyGram's SEP-24 anchor is a Stellar-native protocol. USDC settled on Stellar flows directly into the MoneyGram withdrawal flow without any cross-chain conversion. A farmer receives NGN cash at a local agent point from a payout that originated as a Soroban contract invocation. Based on research, we dont believe any other major chain has this path at production scale in Nigeria today.
+
+**SEP-10 trustless authentication.** Farmers and partner institutions authenticate to the protocol using their Stellar keypair via SEP-10 Web Auth, a challenge-response signature scheme that requires no password, no OTP, and no custodial account. This is the authentication primitive that allows USSD and WhatsApp flows to be cryptographically verified without a smartphone.
+
 
 ---
 
@@ -63,13 +71,14 @@ This is not a project that uses Stellar as a payment rail while the core logic l
 
 ## Architecture principles
 
-**Backend-mediated orchestration.** The Laravel backend coordinates policy state, external data, wallet state, provider callbacks, and contract invocation. The frontend is not the integration point for Soroban or provider webhooks.
+**Backend-mediated orchestration.** The backend coordinates policy state, external data, wallet state, provider callbacks, and contract invocation. It is important to know that the frontend is not the integration point for Soroban or provider webhooks.
 
-**Custodial settlement, fiat-facing UX.** Claim proceeds settle in USDC to a Riwe-managed custodial Stellar wallet on the farmer's behalf. The farmer never interacts with USDC directly. Their experience is entirely in NGN. MoneyGram converts and disburses at the agent point. The USDC layer is internal to the settlement infrastructure.
+**Custodial settlement, fiat-facing UX.** Claim proceeds settle in USDC to a managed custodial Stellar wallet on the farmer's behalf. The farmer never interacts with USDC directly. They only gget alerted via sms about a payout and a refrence ID pointing them to the nearest agent. Their experience is entirely in local currency which in this case is aira (NGN). MoneyGram converts and disburses at the agent point. The USDC layer is internal to the settlement infrastructure.
 
-**Insurer-underwritten risk, not decentralised capital.** Riwe does not pool capital on-chain. Licensed insurance companies underwrite the risk on their own balance sheets. Riwe provides the parametric trigger infrastructure, oracle layer, and settlement rail. The smart contracts enforce the payout rules that the insurer has agreed to at underwriting. They do not replace the insurer.
+**Insurer-underwritten risk, not decentralised capital.** It is important to note that we do not pool capital on-chain at this point as decentralised capital is futuristic based on regulatory approvals. For now, licensed insurance companies underwrite the risk on their own balance sheets. Riwe provides the parametric trigger infrastructure, oracle layer, and settlement rail. The smart contracts enforce the payout rules that the insurer has agreed to at underwriting. They do not replace the insurer. Once a trigger event happens, we auto payout a fraction of the total claims to the farmer wallet whcih can be withdrawn isntatly while we wait for our underwriters to disburse re3maindr claims to user wallet which can then be withdrawn via our agent network. Our approach allows underwriting partners audit settlement logic and fund custody independently, which is a standard requirement for licensed insurers operating under NAICOM supervision.
 
-**Fiat rails are application integrations, not smart contracts.** Paystack and MoneyGram are backend service integrations managed entirely from the Laravel layer. They are not on-chain components.
+
+**Fiat rails are application integrations, not smart contracts.** Paystack and MoneyGram are backend service integrations managed entirely from the application layer. They are not on-chain components.
 
 **TEE-verified oracle inputs, Merkle-auditable batches.** Oracle data arrives on-chain only via Acurast's TEE processor network. Individual farm readings are batched into Merkle trees before submission. The on-chain Oracle contract stores the Merkle root. Any counterparty can verify that a specific farm's NDVI reading was included in a verified batch without replaying the full dataset.
 
@@ -324,7 +333,7 @@ Observation cycle
 +-------------------------------+
 ```
 
-Individual farm readings are not submitted one by one. Each Acurast oracle cycle aggregates all active farm polygon readings into a Merkle tree. The Oracle contract stores only the 32-byte root. Full leaf data is stored off-chain in our data layer. When the backend uses a reading in a claim decision, it passes the reading plus a Merkle proof to the contract. The contract verifies the proof against the stored root confirming the reading was part of the verified oracle batch without storing every farm's data on-chain.
+Individual farm readings are not submitted one by one as this is ineffective. Instaed, each Acurast oracle cycle aggregates all active farm polygon readings into a Merkle tree. The Oracle contract stores only the 32-byte root. Full leaf data is stored off-chain in our data layer. When the backend uses a reading in a claim decision, it passes the reading plus a Merkle proof to the contract. The contract verifies the proof against the stored root confirming the reading was part of the verified oracle batch without storing every farm's data on-chain.
 
 This approach provides three properties. Gas efficiency: storing a 32-byte root instead of thousands of readings. Auditability: any counterparty can independently verify any specific farm reading by requesting its Merkle proof. Tamper evidence: a single altered reading invalidates the Merkle root, making post-hoc data manipulation detectable.
 
