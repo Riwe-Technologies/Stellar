@@ -50,8 +50,8 @@ Soroban's deterministic execution model is the right fit for parametric insuranc
 
 | Layer | Baseline |
 |---|---|
-| Application framework | Laravel 10 |
-| Language runtime | PHP 8.2 |
+| Application framework | Laravel 12 |
+| Language runtime | PHP 8.5, Rust, Python |
 | Primary data store | PostgreSQL |
 | API style | REST, Sanctum-protected API groups plus authenticated web routes |
 | Blockchain settlement network | Stellar |
