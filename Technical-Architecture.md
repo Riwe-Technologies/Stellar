@@ -28,12 +28,7 @@ Related: [System-Architecture.md](./System-Architecture.md) · [Contract-Specifi
 ---
 
 ## Why the Stellar Chain
-
-First, money moves in every cycle of insurance, from premium payment to claims settlement, and we are building for the last mile, farmers who have long been financially excluded. To build this, we first ensured that moving mony was easy for these farmers who don't have bank accounts or formal financial literacy. This is where monygram comes in. MoneyGram already operates as a SEP-24 anchor on Stellar. That means USDC settled on Stellar can be converted to NGN and disbursed as cash through MoneyGram's Nigerian agent network without building a custom fiat bridge. 
-
-Second, Soroban's deterministic execution model is the right fit for parametric insurance. The same oracle data and trigger conditions must always produce the same claim outcome. No discretion, no dispute, no adjuster. Soroban guarantees that.
-
-Third, USDC as a native Stellar asset means the insurance pool, premium flows, and payouts are all denominated in a stablecoin that is auditable by our insurers and any reinsurer without exposure to crypto volatility. Farmers never touch USDC, they pay in NGN and collect in NGN. The USDC layer is internal settlement infrastructure.
+Soroban's deterministic execution model is the right fit for parametric insurance. The same oracle data and trigger conditions must always produce the same claim outcome. No discretion, no dispute, no adjuster. Soroban guarantees that.
 
 
 ## What Stellar uniquely enables
