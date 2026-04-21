@@ -143,7 +143,7 @@ Soroban's deterministic execution model is the right fit for parametric insuranc
 
 ### Network profiles
 
-`config/stellar.php` supports `testnet`, `mainnet`, and `futurenet`. Key config values include `stellar.default_network`, per-network Horizon and Soroban RPC endpoints, `stellar.insurance.*_contract_id` for all four contracts, and mainnet hardening settings under `security.mainnet_security`.
+`config/stellar.php` supports `testnet`, `mainnet`, and `futurenet`. Key config values include `stellar.default_network`, per-network Horizon and Soroban RPC endpoints, `stellar.insurance_contract_id` for all four contracts, and mainnet hardening settings under `security.mainnet_security`.
 
 ### `StellarWalletService`
 
@@ -273,15 +273,15 @@ The Claim Engine presents as a single settlement primitive to end users. `insura
 
 ## Oracle architecture
 
-### Why Acurast, not a centralised API call
+### Our choice for Acurast
 
-We reviewed the full Stellar oracle ecosystem. Reflector Network, Band, and DIA are price feed oracles. They do not serve climate and satellite data. Acurast is the only production-available decentralised compute option on Stellar that can execute arbitrary off-chain jobs inside a hardware Trusted Execution Environment. The data source does not change. We still pull from Sentinel Hub. The trust model does: instead of trusting Riwe to report the data honestly, any counterparty can verify the TEE attestation proof on-chain.
+We reviewed the Stellar oracle ecosystem. Reflector Network, Band, and DIA are price feed oracles. They do not serve climate and satellite data. Acurast was the only production-available decentralised compute option on Stellar that can execute arbitrary off-chain jobs inside a hardware Trusted Execution Environment. The data source does not change. We still pull Satelite data from Sentinel Hub. The trust model does: instead of trusting us to report the data honestly, any counterparty can verify the TEE attestation proof on-chain.
 
 ### TEE attestation
 
-The Sentinel Hub retrieval, NDVI aggregation, and payload signing all run inside a hardware secure enclave. Neither Riwe nor Acurast operators can observe or tamper with execution after the job is deployed. The TEE generates an attestation proof, a cryptographic certificate from the hardware manufacturer confirming the code ran in a genuine enclave. The `parametric-oracle` contract checks this proof before accepting any submission. A payload without a valid TEE attestation is rejected at the contract level.
+The Satellite data retrieval, NDVI aggregation, and payload signing all run inside a hardware secure enclave. Neither our team nor Acurast operators can observe or tamper with execution after the job is deployed. The TEE generates an attestation proof, a cryptographic certificate from the hardware manufacturer confirming the code ran in a genuine enclave. The `parametric-oracle` contract checks this proof before accepting any submission. A payload without a valid TEE attestation is rejected at the contract level.
 
-### Merkle-batched submissions
+### Merkle-batched submissions for Efficiency
 
 ```
 Observation cycle
@@ -340,11 +340,11 @@ The Oracle contract enforces a minimum quorum of 3 independent Acurast TEE nodes
 
 ### Failure mode 1: Cloud cover gaps
 
-Sentinel Hub optical imagery is subject to cloud obstruction. When cloud coverage exceeds 20% over a farm polygon for a given observation window, the NDVI reading is flagged as incomplete. The system falls back to ERA5 reanalysis weather data, a model-derived dataset not subject to optical obstruction, for the weather-based trigger components (rainfall, temperature). NDVI-based triggers are suspended for the affected window. The policy term extends by the length of the missed window. Partners and farmers are notified via the dApp status dashboard.
+Sentinel Hub optical imagery is subject to cloud obstruction and satellite availability. When cloud coverage exceeds 20% over a farm polygon for a given observation window, the NDVI reading is flagged as incomplete. The system falls back to ERA5 reanalysis weather data, a model-derived dataset not subject to optical obstruction, for the weather-based trigger components (rainfall, temperature). NDVI-based triggers are suspended for the affected window. The policy term extends by the length of the missed window. Partners and farmers are notified via the dApp status dashboard.
 
 ### Failure mode 2: Oracle node failure or quorum not reached
 
-If quorum cannot be reached within the observation window buffer (default: 7 days, configurable per policy), affected policies enter a suspended state. No trigger fires. No premium is forfeited. The policy term extends by the missed window duration. This is enforced at the contract level. There is no code path in `insurance-claim` that accepts an oracle payload that was not quorum-validated.
+If quorum cannot be reached within the observation window buffer (default: 7 days, also configurable per policy), affected policies are auto moved to a suspended state. No trigger fires. No premium is forfeited. The policy term extends by the missed window duration. This is enforced at the contract level. There is no code path in our `insurance-claim` that accepts an oracle payload that was not quorum-validated.
 
 ### Failure mode 3: Tampered payload
 
@@ -495,7 +495,7 @@ $payoutAmount    = ($coverageAmount * $percentageToPay) / 100;
 
 ## MoneyGram integration
 
-MoneyGram is a backend service integration. It is not an on-chain component. It sits after wallet settlement.
+MoneyGram is a backend service integration. It is not an on-chain component at this stage. It sits after wallet settlement.
 
 ### Payout sequence
 
@@ -575,9 +575,6 @@ Distribution partners, including commercial banks and microfinance institutions 
 | Table | Purpose |
 |---|---|
 | `stellar_wallets` | Custodial wallet records and AES-256 encrypted key metadata |
-| `defi_wallets` | Broader custodial asset-access records |
-| `defi_transactions` | Wallet transaction history and state |
-| `fiat_onramps` | Paystack and MoneyGram provider-side transaction records |
 | `insurance_policies` | Off-chain policy state mirrored against on-chain contract identifiers |
 | `claims` | Claim records, trigger data, oracle context, Merkle proofs, processing metadata |
 | `stellar_smart_contracts` | Contract references, deployment and linking metadata |
@@ -590,7 +587,7 @@ Distribution partners, including commercial banks and microfinance institutions 
 
 **Application-layer controls:**
 
-- Custodial private keys encrypted with AES-256 via Laravel `Crypt`. Never exposed in API responses
+- Custodial private keys encrypted with AES-256 via Laravel `Crypt`. 
 - Per-environment Stellar network selection. Testnet and mainnet cannot be mixed accidentally
 - Webhook secret validation on all MoneyGram callbacks
 - Sanctum token authentication on all insurance API routes
