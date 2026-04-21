@@ -27,11 +27,9 @@ Related: [System-Architecture.md](./System-Architecture.md) · [Contract-Specifi
 
 ---
 
-## Why the Stellar Chain
-Soroban's deterministic execution model is the right fit for parametric insurance. The same oracle data and trigger conditions must always produce the same claim outcome. No discretion, no dispute, no adjuster. Soroban guarantees that.
-
-
 ## What Stellar uniquely enables
+
+Soroban's deterministic execution model is the right fit for parametric insurance. The same oracle data and trigger conditions must always produce the same claim outcome. No discretion, no dispute, no adjuster. Soroban guarantees that.
 
 **Transparent, auditable risk records.** Every policy issuance, oracle submission, and claim payout is anchored on the Stellar ledger. Licensed insurer partners can independently verify the full history of any policy they have underwritten without calling us. This is the audit trail that traditional parametric insurance cannot offer.
 
