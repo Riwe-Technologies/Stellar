@@ -1,4 +1,4 @@
-# Riwe Technical Architecture
+# Technical Architecture
 ## Parametric Climate Insurance on Stellar
 
 Related: [System-Architecture.md](./System-Architecture.md) · [Contract-Specifications.md](./Contract-Specifications.md) · [Soroban-Smart-Contracts-Overview.md](./Soroban-Smart-Contracts-Overview.md) · [DeFi-and-Moneygram-Claims-Payout.md](./DeFi-and-Moneygram-Claims-Payout.md) · [Moneygram-Integration.md](./Moneygram-Integration.md)
