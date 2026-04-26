@@ -1,4 +1,4 @@
-# Riwe on Stellar
+# Riwe
 ## Technical Architecture Document
 
 ## Table of Contents
@@ -17,13 +17,12 @@
 - [12. Product Screens and Workflow Evidence](#12-product-screens-and-workflow-evidence)
 - [13. Deliverables](#13-deliverables)
 - [14. Risks and Controls](#14-risks-and-controls)
-- [15. Conclusion](#15-conclusion)
 
-### 1. Introduction
+### 1. Introduction - Company Overview
 
-Riwe is building a parametric climate insurance protocol on Stellar for smallholder farmers, cooperatives, distributors, and licensed insurance partners.
+Riwe is building a parametric climate insurance protocol on Stellar for smallholder farmers, cooperatives, and insurance partners. We aim to bridge the protection gap by solving the major issues for the low insurance up take across Nigeria and Africa; claims disputes and delays, policy adminsitraive bottlenecks, high premiums and logisticsl nightmare of claims adjusters, all of which are responsbile for less than 1% insurance pentration rate in Nigeria and less than 0.3% across the Nigerian Agricultural value chain, leaving over 30 million farmers vulnerable to climate shocks. 
 
-Riwe is not the underwriter. Insurance partners underwrite the products and carry the regulated insurance risk. Riwe provides the infrastructure layer: policy workflows, climate-trigger verification, claims state, payout authorization, and partner-facing visibility. Product design is done with actuarial support and in collaboration with insurance partners, who remain responsible for underwriting and regulated treasury operations.
+Riwe is not the underwriter. Our Insurance partners underwrite the products and carry the regulated insurance risk. Riwe provides the infrastructure layer: policy workflows, climate-trigger verification, claims state, payout authorization, and partner-facing visibility. Product design is done with actuarial support and in collaboration with insurance partners, who remain responsible for underwriting and regulated treasury operations.
 
 The architecture is intentionally hybrid. Underwriting, reserves, and treasury remain off-chain with regulated insurance partners. Policy state, trigger verification, claim state changes, and payout authorization are anchored on Stellar. This gives insurers and partners a shared, auditable system without forcing regulated insurance operations into an unrealistic fully on-chain model.
 
@@ -59,7 +58,7 @@ Riwe is being built for a regulated insurance environment. That creates direct a
 - the settlement flow is designed to auto-settle clean parametric events and move unresolved cases into controlled fallback states when oracle data is stale, missing, conflicting, or incomplete
 - policy creation, trigger verification, claim state changes, and payout authorization are recorded on-chain so insurers can verify settlement activity against regulated treasury and reporting systems
 
-These constraints shape the architecture. They do not reduce the role of Stellar. They define where Stellar creates the most value.
+These constraints shape the architecture, and simply define where Stellar creates the most value in the las mile.
 
 Riwe uses Stellar for the parts of the insurance workflow that benefit most from shared state, programmability, and transparent settlement:
 
@@ -255,7 +254,7 @@ When a climate event occurs, the oracle layer submits a signed observation to th
 
 The oracle is the main trust boundary in the system.
 
-Riwe’s target SCF43 architecture uses:
+Our architecture uses:
 
 - approved climate data sources
 - an oracle relay that normalizes source data into a deterministic payload schema
@@ -346,7 +345,7 @@ Attach screenshots directly in the final document under these headings.
 #### Figure 4. Insurer Dashboard
 ![Insurer dashboard screenshot](./scf_images/Insurance-dashboard.png)
 
-#### Figure 5. Trigger Monitoring Workflow
+#### Figure 5. OnChain Trigger Monitoring Workflow on Stellar Expert
 ![Trigger monitoring screenshot](./scf_images/Stellar-expert.png)
 
 #### Figure 6. Claim and Settlement Workflow
@@ -386,7 +385,7 @@ The main architecture risks are:
 - breakdown between on-chain settlement state and off-chain treasury execution
 - backend or RPC coordination failure
 
-Controls in scope for SCF43 include:
+Controls in place to mitigate against such:
 
 - signer authorization and revocation paths
 - freshness checks and replay protection
@@ -395,9 +394,3 @@ Controls in scope for SCF43 include:
 - oracle health monitoring and anomaly detection
 - reconciliation between on-chain claim state and off-chain treasury execution
 - operational runbooks and release controls
-
-### 15. Conclusion
-
-Riwe’s architecture is designed for a hybrid insurance model that fits the regulated markets we operate in. Underwriting and treasury remain with licensed insurance partners. Policy state, trigger verification, claim evaluation, and payout authorization are anchored on Stellar.
-
-SCF43 is focused on taking that architecture from its current implementation base into a hardened, testnet-validated, and mainnet-ready protocol.
