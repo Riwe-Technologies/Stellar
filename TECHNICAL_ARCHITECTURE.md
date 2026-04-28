@@ -50,7 +50,7 @@ This is the bridge between existing insurance rails and programmable settlement 
 
 ### 3. Architecture Constraints
 
-Riwe is being built for a regulated insurance environment. That creates direct architecture constraints:
+While our end goal is for decentralised capital, at the moment, Riwe is being built for a regulated insurance environment. That creates direct architecture constraints:
 
 - underwriting stays with licensed insurance partners
 - reserves and treasury stay off-chain with regulated entities
