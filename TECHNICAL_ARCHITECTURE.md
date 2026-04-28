@@ -331,8 +331,6 @@ During claim evaluation, the contract compares submitted climate measurements ag
 
 ### 12. Product Screens and Workflow Evidence
 
-Attach screenshots directly in the final document under these headings.
-
 #### Figure 1. Farmer Dashboard
 ![Farmer dashboard screenshot](./scf_images/Farmer-dashboard.png)
 
